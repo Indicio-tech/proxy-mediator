@@ -1,0 +1,15 @@
+name: DCO
+on:
+  pull_request:
+
+jobs:
+  dco:
+    name: Signed-off-by present
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: ${{ github.event.pull_request.commits }}
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Check commits
+        run: ./.github/workflows/dco_check.sh
