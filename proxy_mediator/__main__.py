@@ -2,10 +2,9 @@
 import argparse
 import json
 import os
-import sys
 from aiohttp import web
 
-from aries_staticagent import StaticConnection, crypto, utils, Message
+from aries_staticagent import StaticConnection, crypto, utils
 
 from connections import Connections
 from connections import States as ConnectionStates
