@@ -1,11 +1,12 @@
 """ Protocol modules and helpers. """
+
+
 class ImpossibleStateTransition(Exception):
-    """ When a state transition is impossible given the current state.
-    """
+    """When a state transition is impossible given the current state."""
 
 
 class ProtocolStateMachine:
-    """ The state machine of a protocol. """
+    """The state machine of a protocol."""
 
     transitions = {}
 
@@ -14,7 +15,7 @@ class ProtocolStateMachine:
         self.role = None
 
     def transition(self, event):
-        """ Follow transition table for event. """
+        """Follow transition table for event."""
         if self.role not in self.__class__.transitions:
             raise ImpossibleStateTransition(
                 "Role {} has no defined transitions.".format(self.role)

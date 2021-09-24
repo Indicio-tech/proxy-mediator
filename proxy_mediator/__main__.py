@@ -11,7 +11,7 @@ from connections import States as ConnectionStates
 
 
 def config():
-    """ Get config """
+    """Get config"""
 
     def environ_or_required(key):
         if os.environ.get(key):

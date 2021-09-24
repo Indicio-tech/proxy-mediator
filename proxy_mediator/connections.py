@@ -9,7 +9,7 @@ from protocolstate import ProtocolStateMachine
 
 
 class States(Enum):
-    """ Possible states for connection protocol. """
+    """Possible states for connection protocol."""
 
     NULL = auto()
     INVITED = auto()
@@ -19,7 +19,7 @@ class States(Enum):
 
 
 class Events(Enum):
-    """ Possible events for connection protocol. """
+    """Possible events for connection protocol."""
 
     # Inviter Role
     SEND_INVITE = auto()
@@ -39,7 +39,7 @@ class Events(Enum):
 
 
 class Roles(Enum):
-    """ Possible roles for connection protocol. """
+    """Possible roles for connection protocol."""
 
     NULL = auto()
     INVITER = auto()
@@ -47,8 +47,8 @@ class Roles(Enum):
 
 
 class ConnectionState(ProtocolStateMachine):
-    """ State object of connection. Defines the state transitions for the
-        protocol.
+    """State object of connection. Defines the state transitions for the
+    protocol.
     """
 
     transitions = {
@@ -96,7 +96,7 @@ class ConnectionState(ProtocolStateMachine):
 
 
 class Connections(Module):
-    """ Module for Connection Protocol """
+    """Module for Connection Protocol"""
 
     DOC_URI = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/"
     PROTOCOL = "connections"
@@ -113,7 +113,7 @@ class Connections(Module):
         self.dispatcher = dispatcher
 
     def create_invitation(self):
-        """ Create and return an invite. """
+        """Create and return an invite."""
         conn_vk, conn_sk = crypto.create_keypair()
         connection = StaticConnection(conn_vk, conn_sk, dispatcher=self.dispatcher)
         conn_vk_b58 = crypto.bytes_to_b58(conn_vk)
@@ -137,7 +137,7 @@ class Connections(Module):
 
     @route
     async def invitation(self, msg, _agent):
-        """ Process an invitation. """
+        """Process an invitation."""
         print(msg.pretty_print())
         their_conn_key = msg["recipientKeys"][0]
         my_vk, my_sk = crypto.create_keypair()
@@ -190,7 +190,7 @@ class Connections(Module):
 
     @route
     async def request(self, msg, _agent):
-        """ Process a request. """
+        """Process a request."""
         print(msg.pretty_print())
         connection = self.connections[msg.mtc.ad["recip_vk"]]
         connection.state.transition(Events.RECV_REQ)
@@ -256,7 +256,7 @@ class Connections(Module):
 
     @route
     async def response(self, msg, _agent):
-        """ Process a response. """
+        """Process a response."""
         print("Got response:", msg.pretty_print())
         their_conn_key = msg["connection~sig"]["signer"]
         connection = self.connections[their_conn_key]
@@ -286,7 +286,7 @@ class Connections(Module):
 
     @route
     async def ack(self, msg, _agent):
-        """ Process an ack. """
+        """Process an ack."""
         print(msg.pretty_print())
         connection = self.connections[msg.mtc.ad["recip_vk"]]
         connection.state.transition(Events.RECV_ACK)
