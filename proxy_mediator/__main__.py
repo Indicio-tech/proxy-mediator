@@ -16,10 +16,6 @@ from connections import Connections
 from connections import States as ConnectionStates
 
 
-# Pull protocols directory into path
-sys.path.insert(0, '../../')
-
-
 def config():
     """ Get config """
     def environ_or_required(key):
