@@ -1,0 +1,18 @@
+version: "3"
+services:
+  tunnel:
+    image: reflectivedevelopment/agent-tunnel
+    command: agent:3000 -p 4040 --host ${AGENT_TUNNEL_HOST}
+
+  agent:
+    image: proxy-mediator
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile
+    environment:
+      TUNNEL_HOST: tunnel
+      TUNNEL_PORT: 4040
+    ports:
+      - "3000:3000"
+    entrypoint: /bin/sh -c "./agent-tunnel-wait.sh \"$$@\"" --
+    command: poetry run python -m proxy_mediator --port 3000

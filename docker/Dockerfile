@@ -1,5 +1,11 @@
 FROM python:3.7
 
+ADD https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 ./jq
+RUN chmod +x ./jq
+
+COPY docker/agent-tunnel-wait.sh ./agent-tunnel-wait.sh
+RUN chmod +x agent-tunnel-wait.sh
+
 RUN pip3 install --no-cache-dir poetry
 RUN mkdir proxy_mediator; touch proxy_mediator/__init__.py
 COPY pyproject.toml .
