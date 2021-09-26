@@ -3,17 +3,20 @@ import argparse
 import json
 import logging
 import os
-from typing import Iterable
 from aiohttp import web
 
 from aries_staticagent import crypto, utils
 from aries_staticagent.dispatcher import Dispatcher, NoRegisteredHandlerException
 
-from .connections import Connections, Connection
-from .connections import States as ConnectionStates
+from .connections import Connections, Connection, ConnectionMachine
 
 
-LOGGER = logging.getLogger(__name__)
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "WARNING").upper()
+logging.basicConfig(
+    format="%(asctime)s %(name)s %(levelname)s %(message)s", level=LOG_LEVEL
+)
+logging.root.warning("Log level set to: %s", LOG_LEVEL)
+LOGGER = logging.getLogger("proxy_mediator")
 
 
 def config():
@@ -33,8 +36,9 @@ def config():
 
 def store_connection(conn: Connection):
     if hasattr(conn, "state") and (
-        conn.state.state == ConnectionStates.COMPLETE
-        or conn.state.state == ConnectionStates.RESPONDED
+        conn.state == ConnectionMachine.complete
+        or conn.state == ConnectionMachine.response_received
+        or conn.state == ConnectionMachine.response_sent
     ):
         with open(".keys", "w+") as key_file:
             json.dump(
@@ -65,38 +69,17 @@ def recall_connection():
         )
 
 
-def _recipients_from_packed_message(packed_message: bytes) -> Iterable[str]:
-    """
-    Inspect the header of the packed message and extract the recipient key.
-    """
-    try:
-        wrapper = json.loads(packed_message)
-    except Exception as err:
-        raise ValueError("Invalid packed message") from err
-
-    recips_json = crypto.b64_to_bytes(wrapper["protected"], urlsafe=True).decode(
-        "ascii"
-    )
-    try:
-        recips_outer = json.loads(recips_json)
-    except Exception as err:
-        raise ValueError("Invalid packed message recipients") from err
-
-    return map(lambda recip: recip["header"]["kid"], recips_outer["recipients"])
-
-
 def main():
     """Main."""
     args = config()
     endpoint = os.environ.get("ENDPOINT", f"http://localhost:{args.port}")
-    print(f"Starting proxy with endpoint: {endpoint}")
+    print(f"Starting proxy with endpoint: {endpoint}", flush=True)
 
     dispatcher = Dispatcher()
     connections = Connections(endpoint, dispatcher=dispatcher)
     conn = recall_connection()
     if not conn or args.replace:
         conn, invitation_url = connections.create_invitation()
-        print("Use this invitation to connect to the toolbox.")
         print("Invitation URL:", invitation_url, flush=True)
 
     conn.route_module(connections)
@@ -116,19 +99,24 @@ def main():
 
     async def handle(request):
         """aiohttp handle POST."""
-        response = []
         packed_message = await request.read()
-        for recipient in _recipients_from_packed_message(packed_message):
-            if recipient in connections.connections:
-                conn = connections.connections[recipient]
-                with conn.session(response.append) as session:
-                    try:
-                        await session.handle(await request.read())
-                    except NoRegisteredHandlerException:
-                        LOGGER.exception("Message handling failed")
-                        raise web.HTTPAccepted()
+
+        LOGGER.debug("Received packed message: %s", packed_message)
+
+        response = []
+        for conn in connections.for_message(packed_message):
+            LOGGER.debug(
+                "Handling message with connection using verkey: %s", conn.verkey_b58
+            )
+            with conn.session(response.append) as session:
+                try:
+                    await session.handle(await request.read())
+                except NoRegisteredHandlerException:
+                    LOGGER.exception("Message handling failed")
+                    raise web.HTTPAccepted()
 
         if response:
+            LOGGER.debug("Returning response over HTTP")
             return web.Response(body=response.pop())
 
         raise web.HTTPAccepted()

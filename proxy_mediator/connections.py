@@ -1,13 +1,18 @@
 """ Connections protocol from Indy HIPE 0031
     https://github.com/hyperledger/indy-hipe/tree/master/text/0031-connection-protocol
 """
-from typing import Dict
+import json
+import logging
+from typing import Dict, Iterable
 
 from aries_staticagent import Connection as AsaPyConn, Message, crypto
 from aries_staticagent.connection import Target
 from aries_staticagent.module import Module, ModuleRouter
 
 from statemachine import StateMachine, State
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Connection(AsaPyConn):
@@ -57,6 +62,32 @@ class Connections(Module):
         # testing the connections protocol.
         self.dispatcher = dispatcher
 
+    def _recipients_from_packed_message(self, packed_message: bytes) -> Iterable[str]:
+        """
+        Inspect the header of the packed message and extract the recipient key.
+        """
+        try:
+            wrapper = json.loads(packed_message)
+        except Exception as err:
+            raise ValueError("Invalid packed message") from err
+
+        recips_json = crypto.b64_to_bytes(wrapper["protected"], urlsafe=True).decode(
+            "ascii"
+        )
+        try:
+            recips_outer = json.loads(recips_json)
+        except Exception as err:
+            raise ValueError("Invalid packed message recipients") from err
+
+        return [recip["header"]["kid"] for recip in recips_outer["recipients"]]
+
+    def for_message(self, packed_message: bytes) -> Iterable[Connection]:
+        return [
+            self.connections[recip]
+            for recip in self._recipients_from_packed_message(packed_message)
+            if recip in self.connections
+        ]
+
     def create_invitation(self):
         """Create and return an invite."""
         connection = Connection.random(dispatcher=self.dispatcher)
@@ -74,12 +105,13 @@ class Connections(Module):
         invitation_url = "{}?c_i={}".format(
             self.endpoint, crypto.bytes_to_b64(invitation.serialize().encode())
         )
+        LOGGER.debug("Created invitation: %s", invitation_url)
         return connection, invitation_url
 
     @route
     async def invitation(self, msg, _conn):
         """Process an invitation."""
-        print(msg.pretty_print(), flush=True)
+        LOGGER.debug("Received invitation: %s", msg.pretty_print())
         invitation_key = msg["recipientKeys"][0]
         new_connection = Connection.random(
             target=Target(
@@ -91,7 +123,7 @@ class Connections(Module):
         ConnectionMachine(new_connection).recieve_invite()
 
         self.connections[invitation_key] = new_connection
-        await new_connection.send_async(
+        request = Message.parse_obj(
             {
                 "@type": self.type("request"),
                 "label": "proxy-mediator",
@@ -121,13 +153,15 @@ class Connections(Module):
                 },
             }
         )
+        LOGGER.debug("Sending request: %s", request.pretty_print())
+        await new_connection.send_async(request)
 
         ConnectionMachine(new_connection).send_request()
 
     @route
     async def request(self, msg: Message, conn):
         """Process a request."""
-        print(msg.pretty_print(), flush=True)
+        LOGGER.debug("Received request: %s", msg.pretty_print())
         assert msg.mtc.recipient
 
         # Pop invite connection
@@ -175,7 +209,7 @@ class Connections(Module):
 
         ConnectionMachine(connection).send_response()
 
-        await connection.send_async(
+        response = Message.parse_obj(
             {
                 "@type": self.type("response"),
                 "~thread": {"thid": msg.id, "sender_order": 0},
@@ -186,17 +220,24 @@ class Connections(Module):
                 ),
             }
         )
+        LOGGER.debug("Sending response: %s", response.pretty_print())
+        LOGGER.debug(
+            "Unsigned connection object: %s", json.dumps(connection_block, indent=2)
+        )
+        await connection.send_async(response)
 
     @route
     async def response(self, msg: Message, conn):
         """Process a response."""
-        print("Got response:", msg.pretty_print(), flush=True)
+        LOGGER.debug("Received response: %s", msg.pretty_print())
         their_conn_key = msg["connection~sig"]["signer"]
         connection = self.connections.pop(their_conn_key)
         ConnectionMachine(connection).receive_response()
 
         connection_block = crypto.verify_signed_message_field(msg["connection~sig"])
-        print("Unpacked connection block", connection_block, flush=True)
+        LOGGER.debug(
+            "Unpacked connection object: %s", json.dumps(connection_block, indent=2)
+        )
 
         # Update connection
         assert connection.target
@@ -206,26 +247,28 @@ class Connections(Module):
         )
         self.connections[connection.verkey_b58] = connection
 
-        # TODO Use trustping
-        await connection.send_async(
+        ping = Message.parse_obj(
             {
                 "@type": self.type(protocol="trust_ping", name="ping_response"),
                 "~thread": {"thid": msg.id},
             }
         )
+        LOGGER.debug("Sending ping: %s", ping.pretty_print())
+        await connection.send_async(ping)
         ConnectionMachine(connection).send_ack()
 
-    # TODO Use trustping
     @route("did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/trust_ping/1.0/ping")
-    async def ack(self, msg: Message, conn):
+    async def ping(self, msg: Message, conn):
         """Process a trustping."""
-        print(msg.pretty_print(), flush=True)
+        LOGGER.debug("Received trustping: %s", msg.pretty_print())
         assert msg.mtc.recipient
         connection = self.connections[msg.mtc.recipient]
         ConnectionMachine(connection).receive_ack()
-        await conn.send_async(
+        response = Message.parse_obj(
             {
                 "@type": self.type(protocol="trust_ping", name="ping_response"),
                 "~thread": {"thid": msg.id},
             }
         )
+        LOGGER.debug("Sending ping response: %s", response.pretty_print())
+        await conn.send_async(response)
