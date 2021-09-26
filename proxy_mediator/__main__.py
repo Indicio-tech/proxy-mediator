@@ -100,7 +100,6 @@ def main():
         print("Invitation URL:", invitation_url, flush=True)
 
     conn.route_module(connections)
-    print(connections.routes, flush=True)
 
     @conn.route("did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/basicmessage/1.0/message")
     async def basic_message_auto_responder(msg, conn):
