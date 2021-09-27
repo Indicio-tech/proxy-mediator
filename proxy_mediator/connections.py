@@ -1,101 +1,13 @@
 """ Connections protocol from Indy HIPE 0031
     https://github.com/hyperledger/indy-hipe/tree/master/text/0031-connection-protocol
 """
-from enum import Enum, auto
 from typing import Dict
 
 from aries_staticagent import Connection as AsaPyConn, Message, crypto
 from aries_staticagent.connection import Target
 from aries_staticagent.module import Module, ModuleRouter
 
-from .protocolstate import ProtocolStateMachine
-
-
-class States(Enum):
-    """Possible states for connection protocol."""
-
-    NULL = auto()
-    INVITED = auto()
-    REQUESTED = auto()
-    RESPONDED = auto()
-    COMPLETE = auto()
-
-
-class Events(Enum):
-    """Possible events for connection protocol."""
-
-    # Inviter Role
-    SEND_INVITE = auto()
-    RECV_REQ = auto()
-    SEND_RESP = auto()
-    RECV_ACK = auto()
-
-    # Invitee Role
-    RECV_INVITE = auto()
-    SEND_REQ = auto()
-    RECV_RESP = auto()
-    SEND_ACK = auto()
-
-    # Either
-    SEND_ERR = auto()
-    RECV_ERR = auto()
-
-
-class Roles(Enum):
-    """Possible roles for connection protocol."""
-
-    NULL = auto()
-    INVITER = auto()
-    INVITEE = auto()
-
-
-class ConnectionState(ProtocolStateMachine):
-    """State object of connection. Defines the state transitions for the
-    protocol.
-    """
-
-    transitions = {
-        Roles.INVITER: {
-            States.NULL: {Events.SEND_INVITE: States.INVITED},
-            States.INVITED: {
-                Events.SEND_INVITE: States.INVITED,
-                Events.RECV_REQ: States.REQUESTED,
-            },
-            States.REQUESTED: {
-                Events.RECV_REQ: States.REQUESTED,
-                Events.SEND_RESP: States.RESPONDED,
-            },
-            States.RESPONDED: {
-                Events.RECV_REQ: States.REQUESTED,
-                Events.SEND_RESP: States.RESPONDED,
-                Events.RECV_ACK: States.COMPLETE,
-            },
-            States.COMPLETE: {Events.RECV_ACK: States.COMPLETE},
-        },
-        Roles.INVITEE: {
-            States.NULL: {Events.RECV_INVITE: States.INVITED},
-            States.INVITED: {
-                Events.RECV_INVITE: States.INVITED,
-                Events.SEND_REQ: States.REQUESTED,
-            },
-            States.REQUESTED: {
-                Events.SEND_REQ: States.REQUESTED,
-                Events.RECV_RESP: States.RESPONDED,
-            },
-            States.RESPONDED: {
-                Events.SEND_REQ: States.REQUESTED,
-                Events.RECV_RESP: States.RESPONDED,
-                Events.SEND_ACK: States.COMPLETE,
-            },
-            States.COMPLETE: {Events.SEND_ACK: States.COMPLETE},
-        },
-    }
-
-    def __init__(self):
-        # Starting state for this protocol
-        super().__init__()
-        self.state = States.NULL
-        self.role = Roles.NULL
+from statemachine import StateMachine, State
 
 
 class Connection(AsaPyConn):
@@ -103,7 +15,28 @@ class Connection(AsaPyConn):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.state = ConnectionState()
+        self.state: str = "null"
+
+
+class ConnectionMachine(StateMachine):
+    null = State("null", initial=True)
+    invite_sent = State("invite_sent")
+    invite_received = State("invited")
+    request_sent = State("request_sent")
+    request_received = State("requested")
+    response_sent = State("response_sent")
+    response_received = State("responded")
+    complete = State("complete")
+
+    send_invite = null.to(invite_sent)
+    receive_request = invite_sent.to(request_received)
+    send_response = request_received.to(response_sent)
+
+    recieve_invite = null.to(invite_received)
+    send_request = invite_received.to(request_sent)
+    receive_response = request_sent.to(response_received)
+    send_ack = response_received.to(complete)
+    receive_ack = response_sent.to(complete)
 
 
 class Connections(Module):
@@ -128,8 +61,7 @@ class Connections(Module):
         """Create and return an invite."""
         connection = Connection.random(dispatcher=self.dispatcher)
         self.connections[connection.verkey_b58] = connection
-        connection.state.role = Roles.INVITER
-        connection.state.transition(Events.SEND_INVITE)
+        ConnectionMachine(connection).send_invite()
         invitation = Message.parse_obj(
             {
                 "@type": self.type("invitation"),
@@ -156,8 +88,7 @@ class Connections(Module):
             ),
             dispatcher=self.dispatcher,
         )
-        new_connection.state.role = Roles.INVITEE
-        new_connection.state.transition(Events.RECV_INVITE)
+        ConnectionMachine(new_connection).recieve_invite()
 
         self.connections[invitation_key] = new_connection
         await new_connection.send_async(
@@ -191,7 +122,7 @@ class Connections(Module):
             }
         )
 
-        new_connection.state.transition(Events.SEND_REQ)
+        ConnectionMachine(new_connection).send_request()
 
     @route
     async def request(self, msg: Message, conn):
@@ -201,7 +132,7 @@ class Connections(Module):
 
         # Pop invite connection
         invite_connection = self.connections.pop(msg.mtc.recipient)
-        invite_connection.state.transition(Events.RECV_REQ)
+        ConnectionMachine(invite_connection).receive_request()
 
         # Create relationship connection
         connection = Connection.random(
@@ -242,7 +173,7 @@ class Connections(Module):
             },
         }
 
-        connection.state.transition(Events.SEND_RESP)
+        ConnectionMachine(connection).send_response()
 
         await connection.send_async(
             {
@@ -262,8 +193,7 @@ class Connections(Module):
         print("Got response:", msg.pretty_print(), flush=True)
         their_conn_key = msg["connection~sig"]["signer"]
         connection = self.connections.pop(their_conn_key)
-
-        connection.state.transition(Events.RECV_RESP)
+        ConnectionMachine(connection).receive_response()
 
         connection_block = crypto.verify_signed_message_field(msg["connection~sig"])
         print("Unpacked connection block", connection_block, flush=True)
@@ -276,21 +206,23 @@ class Connections(Module):
         )
         self.connections[connection.verkey_b58] = connection
 
-        connection.state.transition(Events.SEND_ACK)
-
         # TODO Use trustping
         await connection.send_async(
-            {"@type": self.type("ack"), "status": "OK", "~thread": {"thid": msg.id}}
+            {
+                "@type": self.type(protocol="trust_ping", name="ping_response"),
+                "~thread": {"thid": msg.id},
+            }
         )
+        ConnectionMachine(connection).send_ack()
 
     # TODO Use trustping
     @route("did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/trust_ping/1.0/ping")
     async def ack(self, msg: Message, conn):
         """Process a trustping."""
-        print(msg.pretty_print())
+        print(msg.pretty_print(), flush=True)
         assert msg.mtc.recipient
         connection = self.connections[msg.mtc.recipient]
-        connection.state.transition(Events.RECV_ACK)
+        ConnectionMachine(connection).receive_ack()
         await conn.send_async(
             {
                 "@type": self.type(protocol="trust_ping", name="ping_response"),
