@@ -1,12 +1,14 @@
 """Connections Protocol Starter Kit"""
 import argparse
+import asyncio
 import json
 import logging
 import os
+from contextlib import asynccontextmanager, suppress
 from aiohttp import web
 
 from aries_staticagent import crypto, utils
-from aries_staticagent.dispatcher import Dispatcher, NoRegisteredHandlerException
+from aries_staticagent.dispatcher import NoRegisteredHandlerException
 
 from .connections import Connections, Connection, ConnectionMachine
 
@@ -40,6 +42,7 @@ def store_connection(conn: Connection):
         or conn.state == ConnectionMachine.response_received
         or conn.state == ConnectionMachine.response_sent
     ):
+        assert conn.target
         with open(".keys", "w+") as key_file:
             json.dump(
                 {
@@ -69,33 +72,9 @@ def recall_connection():
         )
 
 
-def main():
-    """Main."""
-    args = config()
-    endpoint = os.environ.get("ENDPOINT", f"http://localhost:{args.port}")
-    print(f"Starting proxy with endpoint: {endpoint}", flush=True)
-
-    dispatcher = Dispatcher()
-    connections = Connections(endpoint, dispatcher=dispatcher)
-    conn = recall_connection()
-    if not conn or args.replace:
-        conn, invitation_url = connections.create_invitation()
-        print("Invitation URL:", invitation_url, flush=True)
-
-    conn.route_module(connections)
-
-    @conn.route("did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/basicmessage/1.0/message")
-    async def basic_message_auto_responder(msg, conn):
-        """Automatically respond to basicmessages."""
-        await conn.send_async(
-            {
-                "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/"
-                "basicmessage/1.0/message",
-                "~l10n": {"locale": "en"},
-                "sent_time": utils.timestamp(),
-                "content": "You said: {}".format(msg["content"]),
-            }
-        )
+@asynccontextmanager
+async def webserver(port: int, connections: Connections):
+    """Listen for messages."""
 
     async def handle(request):
         """aiohttp handle POST."""
@@ -123,11 +102,49 @@ def main():
 
     app = web.Application()
     app.add_routes([web.post("/", handle)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    task = asyncio.ensure_future(site.start())
+    try:
+        yield task
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+        await runner.cleanup()
 
-    web.run_app(app, port=args.port)
-    if args.replace:
-        store_connection(conn)
+
+async def main():
+    """Main."""
+    args = config()
+    endpoint = os.environ.get("ENDPOINT", f"http://localhost:{args.port}")
+    print(f"Starting proxy with endpoint: {endpoint}", flush=True)
+
+    connections = Connections(endpoint)
+
+    @connections.route_method(
+        "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/basicmessage/1.0/message"
+    )
+    async def basic_message_auto_responder(msg, conn):
+        """Automatically respond to basicmessages."""
+        await conn.send_async(
+            {
+                "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/"
+                "basicmessage/1.0/message",
+                "~l10n": {"locale": "en"},
+                "sent_time": utils.timestamp(),
+                "content": "You said: {}".format(msg["content"]),
+            }
+        )
+
+    async with webserver(args.port, connections) as server:
+        conn, invite = connections.create_invitation()
+        print("Invitation URL:", invite, flush=True)
+        conn = await conn.completion()
+        print("Connection completed successfully")
+        await server
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.get_event_loop().run_until_complete(main())

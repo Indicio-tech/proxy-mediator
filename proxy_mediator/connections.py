@@ -1,12 +1,16 @@
 """ Connections protocol from Indy HIPE 0031
     https://github.com/hyperledger/indy-hipe/tree/master/text/0031-connection-protocol
 """
+import asyncio
+from asyncio.futures import Future
 import json
 import logging
-from typing import Dict, Iterable
+from typing import Callable, Dict, Iterable
 
 from aries_staticagent import Connection as AsaPyConn, Message, crypto
 from aries_staticagent.connection import Target
+from aries_staticagent.dispatcher import Dispatcher, Handler
+from aries_staticagent.message import MsgType
 from aries_staticagent.module import Module, ModuleRouter
 
 from statemachine import StateMachine, State
@@ -21,6 +25,28 @@ class Connection(AsaPyConn):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.state: str = "null"
+        self._completed: Future = asyncio.get_event_loop().create_future()
+
+    @property
+    def is_completed(self):
+        return self._completed.done()
+
+    def complete(self):
+        """Complete this connection"""
+        self._completed.set_result(self)
+
+    async def completion(self) -> "Connection":
+        """Await connection completion.
+
+        For invitation connections, the connection is replaced after receiving
+        a connection request. This will return the completed connection.
+        """
+        return await self._completed
+
+    def from_invite(self, invite: "Connection"):
+        """Transfer state from invite connection to relationship connection."""
+        self.state = invite.state
+        self._completed = invite._completed
 
 
 class ConnectionMachine(StateMachine):
@@ -40,8 +66,8 @@ class ConnectionMachine(StateMachine):
     recieve_invite = null.to(invite_received)
     send_request = invite_received.to(request_sent)
     receive_response = request_sent.to(response_received)
-    send_ack = response_received.to(complete)
-    receive_ack = response_sent.to(complete)
+    send_ack = response_received.to(complete) | complete.to.itself()
+    receive_ack = response_sent.to(complete) | complete.to(complete)
 
 
 class Connections(Module):
@@ -52,15 +78,16 @@ class Connections(Module):
     version = "1.0"
     route = ModuleRouter()
 
-    def __init__(self, endpoint=None, dispatcher=None, connections=None):
+    def __init__(self, endpoint=None, connections=None):
         super().__init__()
         self.endpoint = endpoint
         self.connections: Dict[str, Connection] = connections if connections else {}
 
-        # This isn't a hack per se but it does allow us to have multiple
-        # Connections with the same underlying routing which is helpful for
-        # testing the connections protocol.
-        self.dispatcher = dispatcher
+        # We want each connection created by this module to share the same routes
+        self.dispatcher = Dispatcher()
+        self.dispatcher.add_handlers(
+            [Handler(msg_type, func) for msg_type, func in self.routes.items()]
+        )
 
     def _recipients_from_packed_message(self, packed_message: bytes) -> Iterable[str]:
         """
@@ -87,6 +114,20 @@ class Connections(Module):
             for recip in self._recipients_from_packed_message(packed_message)
             if recip in self.connections
         ]
+
+    def route_method(self, msg_type: str) -> Callable:
+        """Register route decorator."""
+
+        def register_route_dec(func):
+            self.dispatcher.add_handler(Handler(MsgType(msg_type), func))
+            return func
+
+        return register_route_dec
+
+    def route_module(self, module: Module):
+        """Register a module for routing."""
+        handlers = [Handler(msg_type, func) for msg_type, func in module.routes.items()]
+        return self.dispatcher.add_handlers(handlers)
 
     def create_invitation(self):
         """Create and return an invite."""
@@ -179,7 +220,7 @@ class Connections(Module):
 
         # Update connections
         self.connections[connection.verkey_b58] = connection
-        connection.state = invite_connection.state
+        connection.from_invite(invite_connection)
 
         # Prepare response
         connection_block = {
@@ -225,6 +266,7 @@ class Connections(Module):
             "Unsigned connection object: %s", json.dumps(connection_block, indent=2)
         )
         await connection.send_async(response)
+        connection.complete()
 
     @route
     async def response(self, msg: Message, conn):
@@ -246,6 +288,7 @@ class Connections(Module):
             endpoint=msg["connection"]["DIDDoc"]["service"][0]["serviceEndpoint"],
         )
         self.connections[connection.verkey_b58] = connection
+        connection.complete()
 
         ping = Message.parse_obj(
             {
