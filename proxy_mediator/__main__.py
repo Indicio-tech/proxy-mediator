@@ -1,13 +1,19 @@
 """Connections Protocol Starter Kit"""
 import argparse
 import json
+import logging
 import os
+from typing import Iterable
 from aiohttp import web
 
-from aries_staticagent import StaticConnection, crypto, utils
+from aries_staticagent import crypto, utils
+from aries_staticagent.dispatcher import Dispatcher, NoRegisteredHandlerException
 
-from connections import Connections
-from connections import States as ConnectionStates
+from .connections import Connections, Connection
+from .connections import States as ConnectionStates
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def config():
@@ -25,7 +31,7 @@ def config():
     return args
 
 
-def store_connection(conn: StaticConnection):
+def store_connection(conn: Connection):
     if hasattr(conn, "state") and (
         conn.state.state == ConnectionStates.COMPLETE
         or conn.state.state == ConnectionStates.RESPONDED
@@ -33,11 +39,15 @@ def store_connection(conn: StaticConnection):
         with open(".keys", "w+") as key_file:
             json.dump(
                 {
-                    "did": crypto.bytes_to_b58(conn.my_vk[:16]),
-                    "my_vk": crypto.bytes_to_b58(conn.my_vk),
-                    "my_sk": crypto.bytes_to_b58(conn.my_sk),
-                    "their_vk": crypto.bytes_to_b58(conn.their_vk),
-                    "endpoint": conn.endpoint,
+                    "did": conn.did,
+                    "my_vk": conn.verkey_b58,
+                    "my_sk": crypto.bytes_to_b58(conn.sigkey),
+                    "recipients": [
+                        crypto.bytes_to_b58(recip) for recip in conn.target.recipients
+                    ]
+                    if conn.target.recipients
+                    else [],
+                    "endpoint": conn.target.endpoint,
                 },
                 key_file,
             )
@@ -48,23 +58,49 @@ def recall_connection():
         return None
     with open(".keys", "r") as key_file:
         info = json.load(key_file)
-        return StaticConnection(
-            info["my_vk"], info["my_sk"], info["their_vk"], info["endpoint"]
+        return Connection.from_parts(
+            (info["my_vk"], info["my_sk"]),
+            recipients=info["recipients"],
+            endpoint=info["endpoint"],
         )
+
+
+def _recipients_from_packed_message(packed_message: bytes) -> Iterable[str]:
+    """
+    Inspect the header of the packed message and extract the recipient key.
+    """
+    try:
+        wrapper = json.loads(packed_message)
+    except Exception as err:
+        raise ValueError("Invalid packed message") from err
+
+    recips_json = crypto.b64_to_bytes(wrapper["protected"], urlsafe=True).decode(
+        "ascii"
+    )
+    try:
+        recips_outer = json.loads(recips_json)
+    except Exception as err:
+        raise ValueError("Invalid packed message recipients") from err
+
+    return map(lambda recip: recip["header"]["kid"], recips_outer["recipients"])
 
 
 def main():
     """Main."""
     args = config()
+    endpoint = os.environ.get("ENDPOINT", f"http://localhost:{args.port}")
+    print(f"Starting proxy with endpoint: {endpoint}")
 
-    connections = Connections("http://localhost:{}".format(args.port))
+    dispatcher = Dispatcher()
+    connections = Connections(endpoint, dispatcher=dispatcher)
     conn = recall_connection()
     if not conn or args.replace:
         conn, invitation_url = connections.create_invitation()
         print("Use this invitation to connect to the toolbox.")
-        print("Invitation URL:", invitation_url)
+        print("Invitation URL:", invitation_url, flush=True)
 
     conn.route_module(connections)
+    print(connections.routes, flush=True)
 
     @conn.route("did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/basicmessage/1.0/message")
     async def basic_message_auto_responder(msg, conn):
@@ -82,8 +118,16 @@ def main():
     async def handle(request):
         """aiohttp handle POST."""
         response = []
-        with conn.reply_handler(response.append):
-            await conn.handle(await request.read())
+        packed_message = await request.read()
+        for recipient in _recipients_from_packed_message(packed_message):
+            if recipient in connections.connections:
+                conn = connections.connections[recipient]
+                with conn.session(response.append) as session:
+                    try:
+                        await session.handle(await request.read())
+                    except NoRegisteredHandlerException:
+                        LOGGER.exception("Message handling failed")
+                        raise web.HTTPAccepted()
 
         if response:
             return web.Response(body=response.pop())
