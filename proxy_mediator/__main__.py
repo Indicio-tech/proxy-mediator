@@ -10,7 +10,7 @@ from aries_staticagent import crypto, utils
 from aries_staticagent.dispatcher import Dispatcher, NoRegisteredHandlerException
 
 from .connections import Connections, Connection
-from .connections import States as ConnectionStates
+from .connections import State as ConnectionStates
 
 
 LOGGER = logging.getLogger(__name__)
@@ -111,6 +111,20 @@ def main():
                 "~l10n": {"locale": "en"},
                 "sent_time": utils.timestamp(),
                 "content": "You said: {}".format(msg["content"]),
+            }
+        )
+
+    # TODO obtain endpoint and routing keys outside of handler method
+    mediation_endpoint = "mediation_endpoint placeholder"
+    mediation_routing_keys = "mediation_routing_keys placeholder"
+
+    @conn.route("https://didcomm.org/coordinate-mediation/1.0/mediate-request")
+    async def grant_mediation_request(msg, conn):
+        await conn.send_async(
+            {
+                "@type": "https://didcomm.org/coordinate-mediation/1.0/mediate-grant",
+                "endpoint": mediation_endpoint,
+                "routing_keys": mediation_routing_keys,
             }
         )
 
