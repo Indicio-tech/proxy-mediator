@@ -147,8 +147,17 @@ def main():
 
         raise web.HTTPAccepted()
 
+    async def create_invite(request):
+        _, invitation = connections.create_invitation()
+        return web.json_response({"invitation_url": invitation})
+
     app = web.Application()
-    app.add_routes([web.post("/", handle)])
+    app.add_routes(
+        [
+            web.post("/", handle),
+            web.get("/create_invitation_url", create_invite),
+        ]
+    )
 
     web.run_app(app, port=args.port)
     if args.replace:
