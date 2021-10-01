@@ -5,6 +5,7 @@ import logging
 import os
 from typing import Iterable
 from aiohttp import web
+from base64 import urlsafe_b64decode
 
 from aries_staticagent import crypto, utils
 from aries_staticagent.dispatcher import Dispatcher, NoRegisteredHandlerException
@@ -151,11 +152,19 @@ def main():
         _, invitation = connections.create_invitation()
         return web.json_response({"invitation_url": invitation})
 
+    async def receive_invite(request):
+        LOGGER.debug("receive_invite called")
+        req = await request.json()
+        invitation_url = req["invitation_url"]
+        invite_msg = json.loads(urlsafe_b64decode(invitation_url.split("c_i=")[1]))
+        await connections.invitation(invite_msg, None)
+
     app = web.Application()
     app.add_routes(
         [
             web.post("/", handle),
             web.get("/create_invitation_url", create_invite),
+            web.post("/receive_invitation", receive_invite),
         ]
     )
 
