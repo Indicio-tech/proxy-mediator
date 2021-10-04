@@ -74,7 +74,7 @@ def recall_connection():
 
 @asynccontextmanager
 async def webserver(port: int, connections: Connections):
-    """Listen for messages."""
+    """Listen for messages and handle using Connections."""
 
     async def sleep():
         print(
@@ -142,6 +142,20 @@ async def main():
                 "~l10n": {"locale": "en"},
                 "sent_time": utils.timestamp(),
                 "content": "You said: {}".format(msg["content"]),
+            }
+        )
+
+    # TODO obtain endpoint and routing keys outside of handler method
+    mediation_endpoint = "mediation_endpoint placeholder"
+    mediation_routing_keys = "mediation_routing_keys placeholder"
+
+    @connections.route("https://didcomm.org/coordinate-mediation/1.0/mediate-request")
+    async def grant_mediation_request(msg, conn):
+        await conn.send_async(
+            {
+                "@type": "https://didcomm.org/coordinate-mediation/1.0/mediate-grant",
+                "endpoint": mediation_endpoint,
+                "routing_keys": mediation_routing_keys,
             }
         )
 
