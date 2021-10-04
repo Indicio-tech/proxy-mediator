@@ -1,19 +1,24 @@
 """Connections Protocol Starter Kit"""
 import argparse
+import asyncio
 import json
 import logging
 import os
-from typing import Iterable
+from contextlib import asynccontextmanager
 from aiohttp import web
 
 from aries_staticagent import crypto, utils
-from aries_staticagent.dispatcher import Dispatcher, NoRegisteredHandlerException
+from aries_staticagent.dispatcher import NoRegisteredHandlerException
 
-from .connections import Connections, Connection
-from .connections import State as ConnectionStates
+from .connections import Connections, Connection, ConnectionMachine
 
 
-LOGGER = logging.getLogger(__name__)
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "WARNING").upper()
+logging.basicConfig(
+    format="%(asctime)s %(name)s %(levelname)s %(message)s", level=LOG_LEVEL
+)
+logging.root.warning("Log level set to: %s", LOG_LEVEL)
+LOGGER = logging.getLogger("proxy_mediator")
 
 
 def config():
@@ -33,9 +38,11 @@ def config():
 
 def store_connection(conn: Connection):
     if hasattr(conn, "state") and (
-        conn.state.state == ConnectionStates.COMPLETE
-        or conn.state.state == ConnectionStates.RESPONDED
+        conn.state == ConnectionMachine.complete
+        or conn.state == ConnectionMachine.response_received
+        or conn.state == ConnectionMachine.response_sent
     ):
+        assert conn.target
         with open(".keys", "w+") as key_file:
             json.dump(
                 {
@@ -65,43 +72,67 @@ def recall_connection():
         )
 
 
-def _recipients_from_packed_message(packed_message: bytes) -> Iterable[str]:
-    """
-    Inspect the header of the packed message and extract the recipient key.
-    """
+@asynccontextmanager
+async def webserver(port: int, connections: Connections):
+    """Listen for messages and handle using Connections."""
+
+    async def sleep():
+        print(
+            "======== Running on {} ========\n" "(Press CTRL+C to quit)".format(port),
+            flush=True,
+        )
+        while True:
+            await asyncio.sleep(3600)
+
+    async def handle(request):
+        """aiohttp handle POST."""
+        packed_message = await request.read()
+
+        LOGGER.debug("Received packed message: %s", packed_message)
+
+        response = []
+        for conn in connections.for_message(packed_message):
+            LOGGER.debug(
+                "Handling message with connection using verkey: %s", conn.verkey_b58
+            )
+            with conn.session(response.append) as session:
+                try:
+                    await session.handle(await request.read())
+                except NoRegisteredHandlerException:
+                    LOGGER.exception("Message handling failed")
+                    raise web.HTTPAccepted()
+
+        if response:
+            LOGGER.debug("Returning response over HTTP")
+            return web.Response(body=response.pop())
+
+        raise web.HTTPAccepted()
+
+    app = web.Application()
+    app.add_routes([web.post("/", handle)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    print("Starting server...", flush=True)
+    await site.start()
     try:
-        wrapper = json.loads(packed_message)
-    except Exception as err:
-        raise ValueError("Invalid packed message") from err
-
-    recips_json = crypto.b64_to_bytes(wrapper["protected"], urlsafe=True).decode(
-        "ascii"
-    )
-    try:
-        recips_outer = json.loads(recips_json)
-    except Exception as err:
-        raise ValueError("Invalid packed message recipients") from err
-
-    return map(lambda recip: recip["header"]["kid"], recips_outer["recipients"])
+        yield sleep
+    finally:
+        print("Closing server...", flush=True)
+        await runner.cleanup()
 
 
-def main():
+async def main():
     """Main."""
     args = config()
     endpoint = os.environ.get("ENDPOINT", f"http://localhost:{args.port}")
-    print(f"Starting proxy with endpoint: {endpoint}")
+    print(f"Starting proxy with endpoint: {endpoint}", flush=True)
 
-    dispatcher = Dispatcher()
-    connections = Connections(endpoint, dispatcher=dispatcher)
-    conn = recall_connection()
-    if not conn or args.replace:
-        conn, invitation_url = connections.create_invitation()
-        print("Use this invitation to connect to the toolbox.")
-        print("Invitation URL:", invitation_url, flush=True)
+    connections = Connections(endpoint)
 
-    conn.route_module(connections)
-
-    @conn.route("did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/basicmessage/1.0/message")
+    @connections.route_method(
+        "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/basicmessage/1.0/message"
+    )
     async def basic_message_auto_responder(msg, conn):
         """Automatically respond to basicmessages."""
         await conn.send_async(
@@ -118,7 +149,7 @@ def main():
     mediation_endpoint = "mediation_endpoint placeholder"
     mediation_routing_keys = "mediation_routing_keys placeholder"
 
-    @conn.route("https://didcomm.org/coordinate-mediation/1.0/mediate-request")
+    @connections.route("https://didcomm.org/coordinate-mediation/1.0/mediate-request")
     async def grant_mediation_request(msg, conn):
         await conn.send_async(
             {
@@ -128,32 +159,13 @@ def main():
             }
         )
 
-    async def handle(request):
-        """aiohttp handle POST."""
-        response = []
-        packed_message = await request.read()
-        for recipient in _recipients_from_packed_message(packed_message):
-            if recipient in connections.connections:
-                conn = connections.connections[recipient]
-                with conn.session(response.append) as session:
-                    try:
-                        await session.handle(await request.read())
-                    except NoRegisteredHandlerException:
-                        LOGGER.exception("Message handling failed")
-                        raise web.HTTPAccepted()
-
-        if response:
-            return web.Response(body=response.pop())
-
-        raise web.HTTPAccepted()
-
-    app = web.Application()
-    app.add_routes([web.post("/", handle)])
-
-    web.run_app(app, port=args.port)
-    if args.replace:
-        store_connection(conn)
+    async with webserver(args.port, connections) as loop:
+        conn, invite = connections.create_invitation()
+        print("Invitation URL:", invite, flush=True)
+        conn = await conn.completion()
+        print("Connection completed successfully")
+        await loop()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.get_event_loop().run_until_complete(main())

@@ -12,6 +12,7 @@ services:
     environment:
       TUNNEL_HOST: tunnel
       TUNNEL_PORT: 4040
+      LOG_LEVEL: DEBUG
     ports:
       - "3000:3000"
     entrypoint: /bin/sh -c "./agent-tunnel-wait.sh \"$$@\"" --
