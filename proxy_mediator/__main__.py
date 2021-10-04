@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import os
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from aiohttp import web
 
 from aries_staticagent import crypto, utils
@@ -76,6 +76,14 @@ def recall_connection():
 async def webserver(port: int, connections: Connections):
     """Listen for messages."""
 
+    async def sleep():
+        print(
+            "======== Running on {} ========\n" "(Press CTRL+C to quit)".format(port),
+            flush=True,
+        )
+        while True:
+            await asyncio.sleep(3600)
+
     async def handle(request):
         """aiohttp handle POST."""
         packed_message = await request.read()
@@ -105,13 +113,12 @@ async def webserver(port: int, connections: Connections):
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
-    task = asyncio.ensure_future(site.start())
+    print("Starting server...", flush=True)
+    await site.start()
     try:
-        yield task
+        yield sleep
     finally:
-        task.cancel()
-        with suppress(asyncio.CancelledError):
-            await task
+        print("Closing server...", flush=True)
         await runner.cleanup()
 
 
@@ -138,12 +145,12 @@ async def main():
             }
         )
 
-    async with webserver(args.port, connections) as server:
+    async with webserver(args.port, connections) as loop:
         conn, invite = connections.create_invitation()
         print("Invitation URL:", invite, flush=True)
         conn = await conn.completion()
         print("Connection completed successfully")
-        await server
+        await loop()
 
 
 if __name__ == "__main__":
