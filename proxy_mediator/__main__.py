@@ -102,7 +102,7 @@ async def webserver(port: int, connections: Connections):
     app.add_routes([web.post("/", handle)])
 
     # Setup "Admin" routes
-    admin.routes(connections, app)
+    admin.register_routes(connections, app)
 
     runner = web.AppRunner(app)
     await runner.setup()

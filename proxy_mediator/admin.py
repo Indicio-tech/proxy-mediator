@@ -9,7 +9,7 @@ from .connections import Connections
 LOGGER = logging.getLogger(__name__)
 
 
-def routes(connections: Connections, app: web.Application):
+def register_routes(connections: Connections, app: web.Application):
     async def create_invite(request):
         _, invitation = connections.create_invitation()
         return web.json_response({"invitation_url": invitation})
