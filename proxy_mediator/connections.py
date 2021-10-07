@@ -5,11 +5,14 @@ import asyncio
 from asyncio.futures import Future
 import json
 import logging
-from typing import Callable, Dict, Iterable
+from typing import Callable, Dict, Iterable, Optional
 
 from aries_staticagent import Connection as AsaPyConn, Message, crypto
 from aries_staticagent.connection import Target
-from aries_staticagent.dispatcher import Dispatcher, Handler
+from aries_staticagent.dispatcher import (
+    Dispatcher,
+    Handler,
+)
 from aries_staticagent.message import MsgType
 from aries_staticagent.module import Module, ModuleRouter
 
@@ -108,7 +111,7 @@ class Connections(Module):
 
         return [recip["header"]["kid"] for recip in recips_outer["recipients"]]
 
-    def for_message(self, packed_message: bytes) -> Iterable[Connection]:
+    def connections_for_message(self, packed_message: bytes) -> Iterable[Connection]:
         return [
             self.connections[recip]
             for recip in self._recipients_from_packed_message(packed_message)
@@ -128,6 +131,20 @@ class Connections(Module):
         """Register a module for routing."""
         handlers = [Handler(msg_type, func) for msg_type, func in module.routes.items()]
         return self.dispatcher.add_handlers(handlers)
+
+    async def handle_message(self, packed_message: bytes) -> Optional[bytes]:
+        response = []
+        for conn in self.connections_for_message(packed_message):
+            LOGGER.debug(
+                "Handling message with connection using verkey: %s", conn.verkey_b58
+            )
+            with conn.session(response.append) as session:
+                await session.handle(packed_message)
+
+        if response:
+            return response.pop()
+
+        return None
 
     def create_invitation(self):
         """Create and return an invite."""
@@ -149,15 +166,14 @@ class Connections(Module):
         LOGGER.debug("Created invitation: %s", invitation_url)
         return connection, invitation_url
 
-    @route
-    async def invitation(self, msg, _conn):
+    async def receive_invite(self, invite: Message):
         """Process an invitation."""
-        LOGGER.debug("Received invitation: %s", msg.pretty_print())
-        invitation_key = msg["recipientKeys"][0]
+        LOGGER.debug("Received invitation: %s", invite.pretty_print())
+        invitation_key = invite["recipientKeys"][0]
         new_connection = Connection.random(
             target=Target(
-                their_vk=msg["recipientKeys"][0],
-                endpoint=msg["serviceEndpoint"],
+                their_vk=invite["recipientKeys"][0],
+                endpoint=invite["serviceEndpoint"],
             ),
             dispatcher=self.dispatcher,
         )
@@ -198,6 +214,7 @@ class Connections(Module):
         await new_connection.send_async(request)
 
         ConnectionMachine(new_connection).send_request()
+        return new_connection
 
     @route
     async def request(self, msg: Message, conn):

@@ -7,11 +7,11 @@ import os
 from contextlib import asynccontextmanager
 from aiohttp import web
 
-from aries_staticagent import crypto, utils
-from aries_staticagent.dispatcher import NoRegisteredHandlerException
+from aries_staticagent import crypto
 
 from .connections import Connections, Connection, ConnectionMachine
-
+from . import admin
+from .protocols import BasicMessage, CoordinateMediation
 
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "WARNING").upper()
 logging.basicConfig(
@@ -78,7 +78,7 @@ async def webserver(port: int, connections: Connections):
 
     async def sleep():
         print(
-            "======== Running on {} ========\n" "(Press CTRL+C to quit)".format(port),
+            "======== Running on {} ========\n(Press CTRL+C to quit)".format(port),
             flush=True,
         )
         while True:
@@ -87,29 +87,23 @@ async def webserver(port: int, connections: Connections):
     async def handle(request):
         """aiohttp handle POST."""
         packed_message = await request.read()
-
         LOGGER.debug("Received packed message: %s", packed_message)
-
-        response = []
-        for conn in connections.for_message(packed_message):
-            LOGGER.debug(
-                "Handling message with connection using verkey: %s", conn.verkey_b58
-            )
-            with conn.session(response.append) as session:
-                try:
-                    await session.handle(await request.read())
-                except NoRegisteredHandlerException:
-                    LOGGER.exception("Message handling failed")
-                    raise web.HTTPAccepted()
-
-        if response:
-            LOGGER.debug("Returning response over HTTP")
-            return web.Response(body=response.pop())
+        try:
+            response = await connections.handle_message(packed_message)
+            if response:
+                LOGGER.debug("Returning response over HTTP")
+                return web.Response(body=response)
+        except Exception:
+            LOGGER.exception("Failed to handle message")
 
         raise web.HTTPAccepted()
 
     app = web.Application()
     app.add_routes([web.post("/", handle)])
+
+    # Setup "Admin" routes
+    admin.register_routes(connections, app)
+
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
@@ -129,35 +123,8 @@ async def main():
     print(f"Starting proxy with endpoint: {endpoint}", flush=True)
 
     connections = Connections(endpoint)
-
-    @connections.route_method(
-        "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/basicmessage/1.0/message"
-    )
-    async def basic_message_auto_responder(msg, conn):
-        """Automatically respond to basicmessages."""
-        await conn.send_async(
-            {
-                "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/"
-                "basicmessage/1.0/message",
-                "~l10n": {"locale": "en"},
-                "sent_time": utils.timestamp(),
-                "content": "You said: {}".format(msg["content"]),
-            }
-        )
-
-    # TODO obtain endpoint and routing keys outside of handler method
-    mediation_endpoint = "mediation_endpoint placeholder"
-    mediation_routing_keys = "mediation_routing_keys placeholder"
-
-    @connections.route("https://didcomm.org/coordinate-mediation/1.0/mediate-request")
-    async def grant_mediation_request(msg, conn):
-        await conn.send_async(
-            {
-                "@type": "https://didcomm.org/coordinate-mediation/1.0/mediate-grant",
-                "endpoint": mediation_endpoint,
-                "routing_keys": mediation_routing_keys,
-            }
-        )
+    connections.route_module(BasicMessage())
+    connections.route_module(CoordinateMediation())
 
     async with webserver(args.port, connections) as loop:
         conn, invite = connections.create_invitation()
