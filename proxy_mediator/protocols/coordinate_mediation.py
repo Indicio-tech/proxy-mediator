@@ -1,8 +1,13 @@
 import asyncio
+import logging
 from typing import List, Optional
+from aries_staticagent.message import Message
 from aries_staticagent.module import Module, ModuleRouter
 from ..connections import Connection
 from ..error import problem_reporter, Reportable
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class MediationError(Reportable):
@@ -55,27 +60,36 @@ class CoordinateMediation(Module):
         super().__init__()
         self.external_mediator_endpoint: Optional[str] = None
         self.external_mediator_routing_keys: Optional[List[str]] = None
-        self.pending_request: Optional[MediationRequest] = None
+        self.external_pending_request: Optional[MediationRequest] = None
+        self.agent_request_received: bool = False
 
     async def request_mediation_from_external(self, external_conn: Connection):
         """Request mediation from the external mediator."""
-        if self.pending_request:
+        LOGGER.debug("Requesting mediation from: %s", external_conn)
+        if self.external_pending_request:
             raise RequestAlreadyPending(
-                f"Mediation request already pending to f{self.pending_request.connection}"
+                "Mediation request already pending to "
+                f"{self.external_pending_request.connection}"
             )
 
-        self.pending_request = MediationRequest(external_conn)
+        self.external_pending_request = MediationRequest(external_conn)
         await external_conn.send_async({"@type": self.type("mediate-request")})
-        await self.pending_request.completed()
+        await self.external_pending_request.completed()
 
     @route(name="mediate-request")
     @problem_reporter(exceptions=MediationError)
     async def mediate_request(self, msg, conn):
-        if not self.pending_request or not self.pending_request.is_complete():
+        """Handle mediation request message."""
+        LOGGER.debug("Received mediation request message: %s", msg.pretty_print())
+        if (
+            not self.external_pending_request
+            or not self.external_pending_request.is_complete()
+        ):
             raise ExternalMediationNotEstablished(
                 "Mediation with external mediator not yet established"
             )
 
+        self.agent_request_received = True
         await conn.send_async(
             {
                 "@type": self.type("mediate-grant"),
@@ -87,10 +101,32 @@ class CoordinateMediation(Module):
     @route(name="mediate-grant")
     @problem_reporter(exceptions=MediationError)
     async def mediate_grant(self, msg, conn):
-        if not self.pending_request:
+        """Handle mediation grant message."""
+        LOGGER.debug("Received mediation grant message: %s", msg.pretty_print())
+        if not self.external_pending_request:
             raise UnexpectedMediationGrant(
                 "Received unexpected mediation grant message"
             )
         self.external_mediator_endpoint = msg["endpoint"]
         self.external_mediator_routing_keys = msg["routing_keys"]
-        self.pending_request.complete()
+        self.external_pending_request.complete()
+
+    @route(name="keylist-update")
+    async def keylist_update(self, msg: Message, conn):
+        """Handle keylist update message."""
+        LOGGER.debug("Received keylist update message: %s", msg.pretty_print())
+        response = Message.parse_obj(
+            {
+                "@type": self.type("keylist-update-response"),
+                "updated": [
+                    {
+                        "recipient_key": update["recipient_key"],
+                        "action": update["action"],
+                        "result": "success",
+                    }
+                    for update in msg["updates"]
+                ],
+            }
+        )
+        LOGGER.debug("Sending keylist update response: %s", response.pretty_print())
+        await conn.send_async(response)
