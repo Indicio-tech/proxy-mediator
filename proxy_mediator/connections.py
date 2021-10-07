@@ -3,23 +3,24 @@
 """
 import asyncio
 from asyncio.futures import Future
+from base64 import urlsafe_b64decode
 import json
 import logging
 from typing import Callable, Dict, Iterable, Optional
 
 from aries_staticagent import Connection as AsaPyConn, Message, crypto
 from aries_staticagent.connection import Target
-from aries_staticagent.dispatcher import (
-    Dispatcher,
-    Handler,
-)
+from aries_staticagent.dispatcher import Dispatcher, Handler
 from aries_staticagent.message import MsgType
 from aries_staticagent.module import Module, ModuleRouter
-
-from statemachine import StateMachine, State
+from statemachine import State, StateMachine
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+class ConnectionNotFound(Exception):
+    """Raised when connection for message not found."""
 
 
 class Connection(AsaPyConn):
@@ -29,6 +30,7 @@ class Connection(AsaPyConn):
         super().__init__(*args, **kwargs)
         self.state: str = "null"
         self._completed: Future = asyncio.get_event_loop().create_future()
+        self.multiuse: bool = False
 
     @property
     def is_completed(self):
@@ -66,7 +68,7 @@ class ConnectionMachine(StateMachine):
     receive_request = invite_sent.to(request_received)
     send_response = request_received.to(response_sent)
 
-    recieve_invite = null.to(invite_received)
+    receive_invite = null.to(invite_received)
     send_request = invite_received.to(request_sent)
     receive_response = request_sent.to(response_received)
     send_ack = response_received.to(complete) | complete.to.itself()
@@ -112,11 +114,15 @@ class Connections(Module):
         return [recip["header"]["kid"] for recip in recips_outer["recipients"]]
 
     def connections_for_message(self, packed_message: bytes) -> Iterable[Connection]:
-        return [
-            self.connections[recip]
-            for recip in self._recipients_from_packed_message(packed_message)
-            if recip in self.connections
+        recipients = self._recipients_from_packed_message(packed_message)
+        connections = [
+            self.connections[recip] for recip in recipients if recip in self.connections
         ]
+        if not connections:
+            raise ConnectionNotFound(
+                f"No connections for message with recipients: {recipients}"
+            )
+        return connections
 
     def route_method(self, msg_type: str) -> Callable:
         """Register route decorator."""
@@ -146,9 +152,10 @@ class Connections(Module):
 
         return None
 
-    def create_invitation(self):
+    def create_invitation(self, *, multiuse: bool = False):
         """Create and return an invite."""
         connection = Connection.random(dispatcher=self.dispatcher)
+        connection.multiuse = multiuse
         self.connections[connection.verkey_b58] = connection
         ConnectionMachine(connection).send_invite()
         invitation = Message.parse_obj(
@@ -166,6 +173,13 @@ class Connections(Module):
         LOGGER.debug("Created invitation: %s", invitation_url)
         return connection, invitation_url
 
+    async def receive_invite_url(self, invite: str):
+        """Process an invitation from a URL."""
+        invite_msg = Message.parse_obj(
+            json.loads(urlsafe_b64decode(invite.split("c_i=")[1]))
+        )
+        return await self.receive_invite(invite_msg)
+
     async def receive_invite(self, invite: Message):
         """Process an invitation."""
         LOGGER.debug("Received invitation: %s", invite.pretty_print())
@@ -177,8 +191,9 @@ class Connections(Module):
             ),
             dispatcher=self.dispatcher,
         )
-        ConnectionMachine(new_connection).recieve_invite()
+        ConnectionMachine(new_connection).receive_invite()
 
+        self.connections[new_connection.verkey_b58] = new_connection
         self.connections[invitation_key] = new_connection
         request = Message.parse_obj(
             {
@@ -224,6 +239,11 @@ class Connections(Module):
 
         # Pop invite connection
         invite_connection = self.connections.pop(msg.mtc.recipient)
+
+        # Push back on if multiuse
+        if invite_connection.multiuse:
+            self.connections[invite_connection.verkey_b58] = invite_connection
+
         ConnectionMachine(invite_connection).receive_request()
 
         # Create relationship connection
@@ -293,7 +313,9 @@ class Connections(Module):
         connection = self.connections.pop(their_conn_key)
         ConnectionMachine(connection).receive_response()
 
-        connection_block = crypto.verify_signed_message_field(msg["connection~sig"])
+        signer, connection_block = crypto.verify_signed_message_field(
+            msg["connection~sig"]
+        )
         LOGGER.debug(
             "Unpacked connection object: %s", json.dumps(connection_block, indent=2)
         )
@@ -301,10 +323,9 @@ class Connections(Module):
         # Update connection
         assert connection.target
         connection.target.update(
-            recipients=msg["connection"]["DIDDoc"]["service"][0]["recipientKeys"],
-            endpoint=msg["connection"]["DIDDoc"]["service"][0]["serviceEndpoint"],
+            recipients=connection_block["DIDDoc"]["service"][0]["recipientKeys"],
+            endpoint=connection_block["DIDDoc"]["service"][0]["serviceEndpoint"],
         )
-        self.connections[connection.verkey_b58] = connection
         connection.complete()
 
         ping = Message.parse_obj(

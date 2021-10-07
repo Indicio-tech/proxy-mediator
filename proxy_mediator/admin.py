@@ -1,9 +1,6 @@
-from base64 import urlsafe_b64decode
-import json
 import logging
 
 from aiohttp import web
-from aries_staticagent.message import Message
 
 from .connections import Connections
 
@@ -19,10 +16,7 @@ def register_routes(connections: Connections, app: web.Application):
         LOGGER.debug("receive_invite called")
         req = await request.json()
         invitation_url = req["invitation_url"]
-        invite_msg = Message.parse_obj(
-            json.loads(urlsafe_b64decode(invitation_url.split("c_i=")[1]))
-        )
-        await connections.receive_invite(invite_msg)
+        await connections.receive_invite_url(invitation_url)
         return web.json_response({"success": True})
 
     app.add_routes(
