@@ -12,7 +12,6 @@ from aries_staticagent.connection import Target
 from aries_staticagent.dispatcher import (
     Dispatcher,
     Handler,
-    NoRegisteredHandlerException,
 )
 from aries_staticagent.message import MsgType
 from aries_staticagent.module import Module, ModuleRouter
@@ -112,7 +111,7 @@ class Connections(Module):
 
         return [recip["header"]["kid"] for recip in recips_outer["recipients"]]
 
-    def for_message(self, packed_message: bytes) -> Iterable[Connection]:
+    def connections_for_message(self, packed_message: bytes) -> Iterable[Connection]:
         return [
             self.connections[recip]
             for recip in self._recipients_from_packed_message(packed_message)
@@ -135,18 +134,14 @@ class Connections(Module):
 
     async def handle_message(self, packed_message: bytes) -> Optional[bytes]:
         response = []
-        for conn in self.for_message(packed_message):
+        for conn in self.connections_for_message(packed_message):
             LOGGER.debug(
                 "Handling message with connection using verkey: %s", conn.verkey_b58
             )
             with conn.session(response.append) as session:
-                try:
-                    await session.handle(packed_message)
-                except NoRegisteredHandlerException:
-                    LOGGER.exception("Message handling failed")
+                await session.handle(packed_message)
 
         if response:
-            LOGGER.debug("Returning response over HTTP")
             return response.pop()
 
         return None

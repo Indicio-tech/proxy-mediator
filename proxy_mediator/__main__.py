@@ -88,10 +88,14 @@ async def webserver(port: int, connections: Connections):
         """aiohttp handle POST."""
         packed_message = await request.read()
         LOGGER.debug("Received packed message: %s", packed_message)
-        response = await connections.handle_message(packed_message)
-        if response:
-            LOGGER.debug("Returning response over HTTP")
-            return web.Response(body=response)
+        try:
+            response = await connections.handle_message(packed_message)
+            if response:
+                LOGGER.debug("Returning response over HTTP")
+                return web.Response(body=response)
+        except Exception:
+            LOGGER.exception("Failed to handle message")
+
         raise web.HTTPAccepted()
 
     app = web.Application()
