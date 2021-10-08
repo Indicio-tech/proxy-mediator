@@ -1,16 +1,13 @@
 """Connections Protocol Starter Kit"""
 import asyncio
 from contextlib import asynccontextmanager
-import json
 import logging
-import os
 
 from aiohttp import web
-from aries_staticagent import crypto
 from configargparse import ArgumentParser, YAMLConfigFileParser
 
 from . import admin, CONNECTIONS
-from .connections import Connection, ConnectionMachine, Connections
+from .connections import Connections
 from .protocols import BasicMessage, CoordinateMediation, Routing
 
 
@@ -37,42 +34,6 @@ def config():
     logging.root.warning("Log level set to: %s", args.log_level)
 
     return args
-
-
-def store_connection(conn: Connection):
-    if hasattr(conn, "state") and (
-        conn.state == ConnectionMachine.complete
-        or conn.state == ConnectionMachine.response_received
-        or conn.state == ConnectionMachine.response_sent
-    ):
-        assert conn.target
-        with open(".keys", "w+") as key_file:
-            json.dump(
-                {
-                    "did": conn.did,
-                    "my_vk": conn.verkey_b58,
-                    "my_sk": crypto.bytes_to_b58(conn.sigkey),
-                    "recipients": [
-                        crypto.bytes_to_b58(recip) for recip in conn.target.recipients
-                    ]
-                    if conn.target.recipients
-                    else [],
-                    "endpoint": conn.target.endpoint,
-                },
-                key_file,
-            )
-
-
-def recall_connection():
-    if not os.path.exists(".keys"):
-        return None
-    with open(".keys", "r") as key_file:
-        info = json.load(key_file)
-        return Connection.from_parts(
-            (info["my_vk"], info["my_sk"]),
-            recipients=info["recipients"],
-            endpoint=info["endpoint"],
-        )
 
 
 @asynccontextmanager
