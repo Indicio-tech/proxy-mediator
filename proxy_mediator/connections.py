@@ -71,8 +71,10 @@ class ConnectionMachine(StateMachine):
     receive_invite = null.to(invite_received)
     send_request = invite_received.to(request_sent)
     receive_response = request_sent.to(response_received)
-    send_ack = response_received.to(complete) | complete.to.itself()
-    receive_ack = response_sent.to(complete) | complete.to(complete)
+    send_ping = response_received.to(complete) | complete.to.itself()
+    receive_ping = response_sent.to(complete) | complete.to.itself()
+    send_ping_response = complete.to.itself()
+    receive_ping_response = complete.to.itself()
 
 
 class Connections(Module):
@@ -93,6 +95,10 @@ class Connections(Module):
         self.dispatcher.add_handlers(
             [Handler(msg_type, func) for msg_type, func in self.routes.items()]
         )
+
+        self.mediator_connection: Optional[Connection] = None
+        self.agent_connection: Optional[Connection] = None
+        self.agent_invitation: Optional[str] = None
 
     def _recipients_from_packed_message(self, packed_message: bytes) -> Iterable[str]:
         """
@@ -173,14 +179,14 @@ class Connections(Module):
         LOGGER.debug("Created invitation: %s", invitation_url)
         return connection, invitation_url
 
-    async def receive_invite_url(self, invite: str):
+    async def receive_invite_url(self, invite: str, **kwargs):
         """Process an invitation from a URL."""
         invite_msg = Message.parse_obj(
             json.loads(urlsafe_b64decode(invite.split("c_i=")[1]))
         )
-        return await self.receive_invite(invite_msg)
+        return await self.receive_invite(invite_msg, **kwargs)
 
-    async def receive_invite(self, invite: Message):
+    async def receive_invite(self, invite: Message, *, endpoint: str = None):
         """Process an invitation."""
         LOGGER.debug("Received invitation: %s", invite.pretty_print())
         invitation_key = invite["recipientKeys"][0]
@@ -218,7 +224,9 @@ class Connections(Module):
                                 "type": "IndyAgent",
                                 "recipientKeys": [new_connection.verkey_b58],
                                 "routingKeys": [],
-                                "serviceEndpoint": self.endpoint,
+                                "serviceEndpoint": endpoint
+                                if endpoint is not None
+                                else self.endpoint,
                             }
                         ],
                     },
@@ -226,9 +234,9 @@ class Connections(Module):
             }
         )
         LOGGER.debug("Sending request: %s", request.pretty_print())
-        await new_connection.send_async(request)
-
         ConnectionMachine(new_connection).send_request()
+        await new_connection.send_async(request, return_route="all")
+
         return new_connection
 
     @route
@@ -330,13 +338,13 @@ class Connections(Module):
 
         ping = Message.parse_obj(
             {
-                "@type": self.type(protocol="trust_ping", name="ping_response"),
+                "@type": self.type(protocol="trust_ping", name="ping"),
                 "~thread": {"thid": msg.id},
             }
         )
         LOGGER.debug("Sending ping: %s", ping.pretty_print())
-        await connection.send_async(ping)
-        ConnectionMachine(connection).send_ack()
+        ConnectionMachine(connection).send_ping()
+        await connection.send_async(ping, return_route="all")
 
     @route("did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/trust_ping/1.0/ping")
     async def ping(self, msg: Message, conn):
@@ -344,7 +352,7 @@ class Connections(Module):
         LOGGER.debug("Received trustping: %s", msg.pretty_print())
         assert msg.mtc.recipient
         connection = self.connections[msg.mtc.recipient]
-        ConnectionMachine(connection).receive_ack()
+        ConnectionMachine(connection).receive_ping()
         response = Message.parse_obj(
             {
                 "@type": self.type(protocol="trust_ping", name="ping_response"),
@@ -352,4 +360,13 @@ class Connections(Module):
             }
         )
         LOGGER.debug("Sending ping response: %s", response.pretty_print())
+        ConnectionMachine(connection).send_ping_response()
         await conn.send_async(response)
+
+    @route("did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/trust_ping/1.0/ping_response")
+    async def ping_response(self, msg: Message, conn):
+        """Process a trustping."""
+        LOGGER.debug("Received trustping response: %s", msg.pretty_print())
+        assert msg.mtc.recipient
+        connection = self.connections[msg.mtc.recipient]
+        ConnectionMachine(connection).receive_ping_response()

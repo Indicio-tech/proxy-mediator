@@ -9,12 +9,7 @@ from aiohttp import web
 from aries_staticagent import crypto
 from configargparse import ArgumentParser, YAMLConfigFileParser
 
-from . import (
-    admin,
-    agent_connection as agent_connection_var,
-    connections as connections_var,
-    mediator_connection as mediator_connection_var,
-)
+from . import admin, CONNECTIONS
 from .connections import Connection, ConnectionMachine, Connections
 from .protocols import BasicMessage, CoordinateMediation, Routing
 
@@ -130,7 +125,7 @@ async def main():
     print(f"Starting proxy with endpoint: {args.endpoint}", flush=True)
 
     connections = Connections(args.endpoint)
-    connections_var.set(connections)
+    CONNECTIONS.set(connections)
     connections.route_module(BasicMessage())
     coordinate_mediation = CoordinateMediation()
     connections.route_module(coordinate_mediation)
@@ -138,16 +133,27 @@ async def main():
 
     async with webserver(args.port, connections) as loop:
         # Connect to mediator by processing passed in invite
-        mediator_connection = await connections.receive_invite_url(args.mediator_invite)
-        mediator_connection_var.set(mediator_connection)
+        # All these operations must take place without an endpoint
+        mediator_connection = await connections.receive_invite_url(
+            args.mediator_invite, endpoint=""
+        )
+        connections.mediator_connection = mediator_connection
         await mediator_connection.completion()
+
+        # Request mediation and send keylist update
         await coordinate_mediation.request_mediation_from_external(mediator_connection)
+        await coordinate_mediation.send_keylist_update(
+            mediator_connection,
+            action="add",
+            recipient_key=mediator_connection.verkey_b58,
+        )
 
         # Connect to agent by creating invite and awaiting connection completion
         agent_connection, invite = connections.create_invitation()
+        connections.agent_invitation = invite
         print("Invitation URL:", invite, flush=True)
         agent_connection = await agent_connection.completion()
-        agent_connection_var.set(agent_connection)
+        connections.agent_connection = agent_connection
         print("Connection completed successfully")
 
         # TODO Start self repairing WS connection to mediator to retrieve

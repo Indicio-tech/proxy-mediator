@@ -2,11 +2,9 @@ from contextvars import ContextVar
 from typing import Type
 from aries_staticagent.utils import validate
 from aries_staticagent.message import BaseMessage
-from .connections import Connections, Connection
+from .connections import Connections
 
-connections: ContextVar[Connections] = ContextVar("connections")
-agent_connection: ContextVar[Connection] = ContextVar("agent_connection")
-mediator_connection: ContextVar[Connection] = ContextVar("mediator_connection")
+CONNECTIONS: ContextVar[Connections] = ContextVar("connections")
 
 
 def message_as(message_cls: Type[BaseMessage]):

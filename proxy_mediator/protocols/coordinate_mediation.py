@@ -5,6 +5,7 @@ from aries_staticagent.message import Message
 from aries_staticagent.module import Module, ModuleRouter
 from ..connections import Connection
 from ..error import problem_reporter, Reportable
+from .. import CONNECTIONS
 
 
 LOGGER = logging.getLogger(__name__)
@@ -73,8 +74,27 @@ class CoordinateMediation(Module):
             )
 
         self.external_pending_request = MediationRequest(external_conn)
-        await external_conn.send_async({"@type": self.type("mediate-request")})
+        await external_conn.send_async(
+            {"@type": self.type("mediate-request")}, return_route="all"
+        )
         await self.external_pending_request.completed()
+
+    async def send_keylist_update(
+        self, external_conn: Connection, action: str, recipient_key: str
+    ):
+        """Send a keylist update to the external mediator."""
+        update = Message.parse_obj(
+            {
+                "@type": self.type("keylist-update"),
+                "updates": [{"recipient_key": recipient_key, "action": action}],
+            }
+        )
+        LOGGER.debug("Sending keylist update: %s", update.pretty_print())
+        response = await external_conn.send_and_await_returned_async(
+            update, type_=self.type("keylist-update-response")
+        )
+        # TODO Process response and check for failures
+        LOGGER.debug("Received keylist update response: %s", response.pretty_print())
 
     @route(name="mediate-request")
     @problem_reporter(exceptions=MediationError)
@@ -89,12 +109,19 @@ class CoordinateMediation(Module):
                 "Mediation with external mediator not yet established"
             )
 
+        connections = CONNECTIONS.get()
+        assert self.external_mediator_routing_keys
+        assert connections.mediator_connection
+
         self.agent_request_received = True
         await conn.send_async(
             {
                 "@type": self.type("mediate-grant"),
                 "endpoint": self.external_mediator_endpoint,
-                "routing_keys": self.external_mediator_routing_keys,
+                "routing_keys": [
+                    *self.external_mediator_routing_keys,
+                    connections.mediator_connection.verkey_b58,
+                ],
             }
         )
 
