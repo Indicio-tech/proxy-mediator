@@ -2,9 +2,9 @@ version: "3"
 services:
   tunnel:
     image: reflectivedevelopment/agent-tunnel
-    command: agent:3000 -p 4040 --host ${AGENT_TUNNEL_HOST}
+    command: proxy:3000 -p 4040 --host ${AGENT_TUNNEL_HOST}
 
-  agent:
+  proxy:
     image: proxy-mediator
     build:
       context: ../
@@ -12,8 +12,11 @@ services:
     environment:
       TUNNEL_HOST: tunnel
       TUNNEL_PORT: 4040
+      PORT: 3000
       LOG_LEVEL: DEBUG
+      MEDIATOR_INVITE: ${MEDIATOR_INVITE}
     ports:
       - "3000:3000"
-    entrypoint: /bin/sh -c "./agent-tunnel-wait.sh \"$$@\"" --
-    command: poetry run python -m proxy_mediator --port 3000
+    depends_on:
+      - tunnel
+    entrypoint: /bin/sh -c "./agent-tunnel-wait.sh poetry run python -m proxy_mediator \"$$@\"" --
