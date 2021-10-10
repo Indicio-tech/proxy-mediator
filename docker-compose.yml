@@ -1,0 +1,38 @@
+version: '3'
+services:
+  proxy:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+    environment:
+      PORT: 3000
+      ENDPOINT: http://proxy:3000
+      # Set mediator invite through .env file or modify this value
+      MEDIATOR_INVITE: ${MEDIATOR_INVITE}
+      LOG_LEVEL: DEBUG
+
+  agent:
+    image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
+    command: >
+      start --label agent -it http 0.0.0.0 3000 -ot http -e http://agent:3000
+      --no-ledger --admin 0.0.0.0 3001 --admin-insecure-mode
+      --debug-connections --auto-accept-invites --auto-accept-requests
+      --auto-ping-connection --log-level debug
+    ports:
+      - 4001:3001
+
+  setup:
+    build:
+      context: ./docker/setup
+      dockerfile: ../Dockerfile.setup
+    environment:
+      - WAIT_BEFORE_HOSTS=3
+      - WAIT_HOSTS=proxy:3000,agent:3000
+      - WAIT_HOSTS_TIMEOUT=30
+      - WAIT_SLEEP_INTERVAL=1
+      - WAIT_HOST_CONNECT_TIMEOUT=10
+      - PROXY=http://proxy:3000
+      - AGENT=http://agent:3001
+    depends_on:
+      - proxy
+      - agent
