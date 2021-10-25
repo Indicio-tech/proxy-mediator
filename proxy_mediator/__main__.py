@@ -21,7 +21,7 @@ def config():
     )
     parser.add_argument("--port", env_var="PORT", type=str, required=True)
     parser.add_argument(
-        "--mediator-invite", env_var="MEDIATOR_INVITE", type=str, required=True
+        "--mediator-invite", env_var="MEDIATOR_INVITE", type=str, required=False
     )
     parser.add_argument("--endpoint", env_var="ENDPOINT", type=str, required=True)
     parser.add_argument("--log-level", env_var="LOG_LEVEL", type=str, default="WARNING")
