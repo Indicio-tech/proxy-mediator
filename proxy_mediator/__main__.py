@@ -95,10 +95,15 @@ async def main():
     async with webserver(args.port, connections) as loop:
         # Connect to mediator by processing passed in invite
         # All these operations must take place without an endpoint
-        mediator_connection = await connections.receive_invite_url(
-            args.mediator_invite, endpoint=""
-        )
-        connections.mediator_connection = mediator_connection
+        if not args.mediator_invite:
+            LOGGER.debug("Awaiting mediator invitation over HTTP")
+            print("Awaiting mediator invitation over HTTP")
+            mediator_connection = await connections.mediator_invite_received()
+        else:
+            LOGGER.debug("Receiving mediator invitation from input")
+            mediator_connection = await connections.receive_mediator_invite(
+                args.mediator_invite
+            )
         await mediator_connection.completion()
 
         # Request mediation and send keylist update
