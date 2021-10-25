@@ -3,40 +3,38 @@ version: '3'
 services:
   proxy:
     build:
-      context: .
+      context: ../
       dockerfile: ./docker/Dockerfile
     environment:
       PORT: 3000
       ENDPOINT: http://proxy:3000
-      # Set mediator invite through .env file or modify this value
-      MEDIATOR_INVITE: ${MEDIATOR_INVITE}
       LOG_LEVEL: debug
 
   agent_alice:
     image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
     command: >
       start --label agent_alice -it http 0.0.0.0 3000 -ot http -e http://agent_alice:3000
-      --no-ledger --admin 0.0.0.0 3001 --admin-insecure-mode
+      --no-ledger --admin 0.0.0.0 4001 --admin-insecure-mode
       --debug-connections --auto-accept-invites --auto-accept-requests
       --auto-ping-connection --log-level debug
     ports:
-      - 3001:3001
+      - 4001:4001
 
   agent_bob:
     image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
     command: >
       start --label agent_bob -it http 0.0.0.0 3000 -ot http -e http://agent_bob:3000
-      --no-ledger --admin 0.0.0.0 3002 --admin-insecure-mode
+      --no-ledger --admin 0.0.0.0 4002 --admin-insecure-mode
       --debug-connections --auto-accept-invites --auto-accept-requests
       --auto-ping-connection --log-level debug
     ports:
-      - 3002:3002
+      - 4002:4002
 
   external_mediator:
     image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
     command: >
       start --label external_mediator -it http 0.0.0.0 3000 -ot http -e http://external_mediator:3000
-      --no-ledger --admin 0.0.0.0 3002 --admin-insecure-mode
+      --no-ledger --admin 0.0.0.0 3003 --admin-insecure-mode
       --debug-connections --auto-accept-invites --auto-accept-requests
       --auto-ping-connection --log-level debug --open-mediation
     ports:
@@ -50,15 +48,16 @@ services:
       dockerfile: ./Dockerfile.test.runner
     environment:
       - WAIT_BEFORE_HOSTS=3
-      - WAIT_HOSTS=proxy:3000,agent_alice:3000,agent_bob:3000
+      - WAIT_HOSTS=proxy:3000,agent_alice:4001,agent_bob:4002,external_mediator:3003
       - WAIT_HOSTS_TIMEOUT=60
       - WAIT_SLEEP_INTERVAL=1
       - WAIT_HOST_CONNECT_TIMEOUT=30
       - PROXY=http://proxy:3000
-      - AGENT_ALICE=http://agent-alice:3001
-      - AGENT_BOB=http://agent-bob:3002
+      - AGENT_ALICE=http://agent_alice:4001
+      - AGENT_BOB=http://agent_bob:4002
+      - EXTERNAL_MEDIATOR=http://external_mediator:3003
     depends_on:
       - proxy
       - agent_alice
       - agent_bob
-
+      - external_mediator
