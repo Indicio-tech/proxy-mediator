@@ -5,7 +5,7 @@ from aries_staticagent.message import BaseMessage
 from aries_staticagent.module import Module, ModuleRouter
 
 from .. import CONNECTIONS, message_as
-from ..connections import Connection
+from ..agent import Connection
 from ..error import Reportable
 
 

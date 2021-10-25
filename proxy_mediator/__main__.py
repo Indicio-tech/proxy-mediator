@@ -7,7 +7,7 @@ from aiohttp import web
 from configargparse import ArgumentParser, YAMLConfigFileParser
 
 from . import admin, CONNECTIONS
-from .connections import Connections
+from .agent import Connections
 from .protocols import BasicMessage, CoordinateMediation, Routing
 
 

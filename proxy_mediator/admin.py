@@ -2,7 +2,7 @@ import logging
 
 from aiohttp import web
 
-from .connections import Connections
+from .agent import Connections
 
 LOGGER = logging.getLogger(__name__)
 

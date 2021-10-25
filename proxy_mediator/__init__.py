@@ -2,7 +2,7 @@ from contextvars import ContextVar
 from typing import Type
 from aries_staticagent.utils import validate
 from aries_staticagent.message import BaseMessage
-from .connections import Connections
+from .agent import Connections
 
 CONNECTIONS: ContextVar[Connections] = ContextVar("connections")
 

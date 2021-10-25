@@ -3,7 +3,7 @@ import logging
 from typing import List, Optional
 from aries_staticagent.message import Message
 from aries_staticagent.module import Module, ModuleRouter
-from ..connections import Connection
+from ..agent import Connection
 from ..error import problem_reporter, Reportable
 from .. import CONNECTIONS
 
