@@ -24,7 +24,6 @@ services:
   setup:
     build:
       context: ./docker/setup
-      dockerfile: ../Dockerfile.setup
     environment:
       - WAIT_BEFORE_HOSTS=3
       - WAIT_HOSTS=proxy:3000,agent:3000
