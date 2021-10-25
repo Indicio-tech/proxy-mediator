@@ -21,6 +21,25 @@ services:
     ports:
       - 4001:3001
 
+  mediator-tunnel:
+    image: dbluhm/agent-tunnel
+    command: -s mediator:3000 -p 4040 -h ${AGENT_TUNNEL_HOST}
+
+  mediator:
+    image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
+    volumes:
+      - ./docker/acapy-endpoint.sh:/home/indy/acapy-endpoint.sh:z
+    ports:
+      - 4002:3001
+    environment:
+      - TUNNEL_ENDPOINT=http://mediator-tunnel:4040
+    entrypoint: /bin/sh -c './acapy-endpoint.sh aca-py "$$@"' --
+    command: >
+      start --label agent -it http 0.0.0.0 3000 -ot http
+      --no-ledger --admin 0.0.0.0 3001 --admin-insecure-mode
+      --debug-connections --auto-accept-invites --auto-accept-requests
+      --auto-ping-connection --log-level debug --open-mediation
+
   setup:
     build:
       context: ./docker/setup
@@ -32,6 +51,7 @@ services:
       - WAIT_HOST_CONNECT_TIMEOUT=10
       - PROXY=http://proxy:3000
       - AGENT=http://agent:3001
+      - MEDIATOR=http://mediator:3001
     depends_on:
       - proxy
       - agent

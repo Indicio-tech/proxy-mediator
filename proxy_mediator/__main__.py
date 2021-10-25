@@ -100,7 +100,9 @@ async def main():
             print("Awaiting mediator invitation over HTTP")
             mediator_connection = await connections.mediator_invite_received()
         else:
-            LOGGER.debug("Receiving mediator invitation from input")
+            LOGGER.debug(
+                "Receiving mediator invitation from input: %s", args.mediator_invite
+            )
             mediator_connection = await connections.receive_mediator_invite(
                 args.mediator_invite
             )
