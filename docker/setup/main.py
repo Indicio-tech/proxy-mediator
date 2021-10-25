@@ -1,9 +1,11 @@
 """Automate setup of Proxy Mediator + Mediated Agent:
 
-1. Retrieve invitation from proxy
-2. Deliver to agent through Admin API
-3. Request mediation from proxy
-4. Set proxy as default mediator
+1. Retrive invitation from mediator
+2. Receive invitation in proxy
+3. Retrieve invitation from proxy
+4. Deliver to agent through Admin API
+5. Request mediation from proxy
+6. Set proxy as default mediator
 """
 
 import asyncio
@@ -12,19 +14,60 @@ import json
 from os import getenv
 
 from acapy_client import Client
-from acapy_client.api.connection import get_connection, receive_invitation
+from acapy_client.api.connection import (
+    get_connection,
+    receive_invitation,
+    create_invitation,
+)
 from acapy_client.api.mediation import (
     get_mediation_requests_mediation_id,
     post_mediation_request_conn_id,
     put_mediation_mediation_id_default_mediator,
+    get_mediation_requests,
 )
 from acapy_client.models.conn_record import ConnRecord
+from acapy_client.models.create_invitation_request import CreateInvitationRequest
 from acapy_client.models.mediation_create_request import MediationCreateRequest
 from acapy_client.models.receive_invitation_request import ReceiveInvitationRequest
+from acapy_client.models.get_mediation_requests_state import GetMediationRequestsState
+from acapy_client.types import Unset
 from httpx import AsyncClient
 
 PROXY = getenv("PROXY", "http://localhost:3000")
 AGENT = getenv("AGENT", "http://localhost:3001")
+MEDIATOR = getenv("MEDIATOR", "http://localhost:3001")
+
+
+async def get_mediator_invite(mediator: Client) -> str:
+    invitation = await create_invitation.asyncio(
+        client=mediator, json_body=CreateInvitationRequest()
+    )
+    if not invitation:
+        raise RuntimeError("Failed to retrieve invitation from mediator")
+    assert not isinstance(invitation.invitation_url, Unset)
+    return invitation.invitation_url
+
+
+async def proxy_receive_mediator_invite(mediator: Client, invite: str):
+    async with AsyncClient() as client:
+        r = await client.post(
+            f"{PROXY}/receive_mediator_invitation", json={"invitation_url": invite}
+        )
+        assert not r.is_error
+
+    # Get mediator mediation requests
+    requests = await get_mediation_requests.asyncio(
+        client=mediator, state=GetMediationRequestsState.GRANTED
+    )
+    assert requests
+    assert not isinstance(requests.results, Unset)
+    while not requests.results:
+        await asyncio.sleep(1)
+        requests = await get_mediation_requests.asyncio(
+            client=mediator, state=GetMediationRequestsState.GRANTED
+        )
+        assert requests
+        assert not isinstance(requests, Unset)
 
 
 async def get_proxy_invite() -> dict:
@@ -81,6 +124,9 @@ async def agent_set_default_mediator(agent: Client, mediation_id: str):
 
 async def main():
     agent = Client(base_url=AGENT)
+    mediator = Client(base_url=MEDIATOR)
+    mediator_invite = await get_mediator_invite(mediator)
+    await proxy_receive_mediator_invite(mediator, mediator_invite)
     invite = await get_proxy_invite()
     conn_record = await agent_receive_invitation(agent, invite)
     print("Proxy and agent are now connected.")

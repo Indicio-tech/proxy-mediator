@@ -97,6 +97,7 @@ class Connections(Module):
         )
 
         self.mediator_connection: Optional[Connection] = None
+        self._mediator_connection_event = asyncio.Event()
         self.agent_connection: Optional[Connection] = None
         self.agent_invitation: Optional[str] = None
 
@@ -157,6 +158,19 @@ class Connections(Module):
             return response.pop()
 
         return None
+
+    async def mediator_invite_received(self) -> Connection:
+        """Await event notifying that mediator invite has been received."""
+        await self._mediator_connection_event.wait()
+        if not self.mediator_connection:
+            raise RuntimeError("Mediator connection event triggered without set")
+        return self.mediator_connection
+
+    async def receive_mediator_invite(self, invite: str) -> Connection:
+        """Receive mediator invitation."""
+        self.mediator_connection = await self.receive_invite_url(invite, endpoint="")
+        self._mediator_connection_event.set()
+        return self.mediator_connection
 
     def create_invitation(self, *, multiuse: bool = False):
         """Create and return an invite."""
