@@ -16,6 +16,10 @@ from .agent import Connection
 LOGGER = logging.getLogger(__name__)
 
 
+class ProtocolError(Exception):
+    """Raised when an error occurs in a protocol."""
+
+
 class Reportable(Exception, ABC):
     """Abstract Base Class for exceptions that can be sent as problem reports."""
 

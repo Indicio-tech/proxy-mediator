@@ -3,15 +3,14 @@ import logging
 from typing import List, Optional
 from aries_staticagent.message import Message
 from aries_staticagent.module import Module, ModuleRouter
-from ..agent import Connection
-from ..error import problem_reporter, Reportable
-from .. import CONNECTIONS
+from ..agent import Agent, Connection
+from ..error import problem_reporter, Reportable, ProtocolError
 
 
 LOGGER = logging.getLogger(__name__)
 
 
-class MediationError(Reportable):
+class MediationError(ProtocolError, Reportable):
     """Base Exception for mediation related errors."""
 
 
@@ -100,6 +99,7 @@ class CoordinateMediation(Module):
     @problem_reporter(exceptions=MediationError)
     async def mediate_request(self, msg, conn):
         """Handle mediation request message."""
+        agent = Agent.get()
         LOGGER.debug("Received mediation request message: %s", msg.pretty_print())
         if (
             not self.external_pending_request
@@ -109,9 +109,8 @@ class CoordinateMediation(Module):
                 "Mediation with external mediator not yet established"
             )
 
-        connections = CONNECTIONS.get()
         assert self.external_mediator_routing_keys
-        assert connections.mediator_connection
+        assert agent.mediator_connection
 
         self.agent_request_received = True
         await conn.send_async(
@@ -120,7 +119,7 @@ class CoordinateMediation(Module):
                 "endpoint": self.external_mediator_endpoint,
                 "routing_keys": [
                     *self.external_mediator_routing_keys,
-                    connections.mediator_connection.verkey_b58,
+                    agent.mediator_connection.verkey_b58,
                 ],
             }
         )

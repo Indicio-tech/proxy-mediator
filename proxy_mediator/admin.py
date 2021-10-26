@@ -2,14 +2,14 @@ import logging
 
 from aiohttp import web
 
-from .agent import Connections
+from .agent import Agent
 
 LOGGER = logging.getLogger(__name__)
 
 
-def register_routes(connections: Connections, app: web.Application):
+def register_routes(agent: Agent, app: web.Application):
     async def retrieve_agent_invitation(request):
-        return web.json_response({"invitation_url": connections.agent_invitation})
+        return web.json_response({"invitation_url": agent.agent_invitation})
 
     app.add_routes(
         [

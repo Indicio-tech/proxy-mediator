@@ -4,8 +4,8 @@ from typing import Any, Dict
 from aries_staticagent.message import BaseMessage
 from aries_staticagent.module import Module, ModuleRouter
 
-from .. import CONNECTIONS, message_as
-from ..agent import Connection
+from .. import message_as
+from ..agent import Agent, Connection
 from ..error import Reportable
 
 
@@ -50,17 +50,17 @@ class Routing(Module):
     @message_as(Forward)
     async def forward(self, msg: Forward, conn: Connection):
         """Handle forward message."""
-        connections = CONNECTIONS.get()
-        if not connections.agent_connection:
+        agent = Agent.get()
+        if not agent.agent_connection:
             raise AgentConnectionNotEstablished(
                 "Connection to the agent has not yet been established."
             )
-        if not connections.mediator_connection:
+        if not agent.mediator_connection:
             raise MediatorConnectionNotEstablished(
                 "Connection to mediator has not yet been established; "
                 "forward messages may only be received from mediator connection"
             )
-        if conn != connections.mediator_connection:
+        if conn != agent.mediator_connection:
             raise ForwardFromUnauthorizedConnection(
                 "Forward messages may only be received from mediator connection"
             )
@@ -68,4 +68,4 @@ class Routing(Module):
         # Assume forward is for the agent connection and just send.
         # Do not perform any wrapping on message (send as "plaintext") because
         # message is already packed.
-        await connections.agent_connection.send_async(msg.msg, plaintext=True)
+        await agent.agent_connection.send_async(msg.msg, plaintext=True)
