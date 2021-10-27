@@ -23,7 +23,18 @@ services:
 
   mediator-tunnel:
     image: dbluhm/agent-tunnel
-    command: -s mediator:3000 -p 4040 -h ${AGENT_TUNNEL_HOST}
+    command: -s reverse-proxy:80 -p 4040 -h ${AGENT_TUNNEL_HOST}
+
+  reverse-proxy:
+    image: nginx
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/templates/default.conf.template:z
+    environment:
+      MEDIATOR: mediator
+      HTTP_PORT: 3000
+      WS_PORT: 3002
+    ports:
+      - 8080:80
 
   mediator:
     image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
@@ -35,7 +46,7 @@ services:
       - TUNNEL_ENDPOINT=http://mediator-tunnel:4040
     entrypoint: /bin/sh -c './acapy-endpoint.sh aca-py "$$@"' --
     command: >
-      start --label agent -it http 0.0.0.0 3000 -ot http
+      start --label agent -it http 0.0.0.0 3000 -it ws 0.0.0.0 3002 -ot http
       --no-ledger --admin 0.0.0.0 3001 --admin-insecure-mode
       --debug-connections --auto-accept-invites --auto-accept-requests
       --auto-ping-connection --log-level debug --open-mediation
