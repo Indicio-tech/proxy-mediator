@@ -8,7 +8,8 @@ from configargparse import ArgumentParser, YAMLConfigFileParser
 
 from . import admin
 from .agent import Agent
-from .protocols import BasicMessage, CoordinateMediation, Routing, Connections
+from .message_retriever import MessageRetriever
+from .protocols import BasicMessage, Connections, CoordinateMediation, Routing
 
 
 LOGGER = logging.getLogger("proxy_mediator")
@@ -99,7 +100,7 @@ async def main():
     agent.route_module(connections)
     agent.route_module(coordinate_mediation)
 
-    async with webserver(args.port, agent) as loop:
+    async with webserver(args.port, agent):
         # Connect to mediator by processing passed in invite
         # All these operations must take place without an endpoint
         if not args.mediator_invite:
@@ -131,9 +132,13 @@ async def main():
         connections.agent_connection = agent_connection
         print("Connection completed successfully")
 
-        # TODO Start self repairing WS connection to mediator to retrieve
-        # messages as a separate task
-        await loop()
+        print("Waiting a moment before beginning message retriever")
+        await asyncio.sleep(3)
+        retriever = MessageRetriever(mediator_connection)
+        try:
+            await retriever.start()
+        finally:
+            await retriever.stop()
 
 
 if __name__ == "__main__":
