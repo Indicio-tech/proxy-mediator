@@ -119,8 +119,8 @@ class CoordinateMediation(Module):
                 "@type": self.type("mediate-grant"),
                 "endpoint": self.external_mediator_endpoint,
                 "routing_keys": [
-                    *self.external_mediator_routing_keys,
                     connections.mediator_connection.verkey_b58,
+                    *self.external_mediator_routing_keys,
                 ],
             }
         )
