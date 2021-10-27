@@ -3,9 +3,10 @@
 """
 
 from base64 import urlsafe_b64decode
+from contextvars import ContextVar
 import json
 import logging
-from typing import Dict, Optional
+from typing import Dict
 
 from ..agent import Connection, Agent, ConnectionMachine
 from aries_staticagent import Message, crypto
@@ -16,6 +17,7 @@ from ..error import ProtocolError
 
 
 LOGGER = logging.getLogger(__name__)
+VAR: ContextVar["Connections"] = ContextVar("connections")
 
 
 class Connections(Module):
@@ -25,6 +27,14 @@ class Connections(Module):
     protocol = "connections"
     version = "1.0"
     route = ModuleRouter()
+
+    @classmethod
+    def get(cls) -> "Connections":
+        return VAR.get()
+
+    @classmethod
+    def set(cls, value: "Connections"):
+        VAR.set(value)
 
     def __init__(self, endpoint=None, connections=None):
         super().__init__()
@@ -36,10 +46,6 @@ class Connections(Module):
         self.dispatcher.add_handlers(
             [Handler(msg_type, func) for msg_type, func in self.routes.items()]
         )
-
-        self.mediator_connection: Optional[Connection] = None
-        self.agent_connection: Optional[Connection] = None
-        self.agent_invitation: Optional[str] = None
 
     def create_invitation(self, *, multiuse: bool = False):
         """Create and return an invite."""

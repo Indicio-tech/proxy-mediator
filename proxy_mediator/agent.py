@@ -15,6 +15,8 @@ from aries_staticagent.message import MsgType
 from aries_staticagent.module import Module
 from statemachine import State, StateMachine
 
+from .protocols.connections import Connections
+
 
 LOGGER = logging.getLogger(__name__)
 VAR: ContextVar["Agent"] = ContextVar("agent")
@@ -102,6 +104,7 @@ class Agent:
         # so this same dispatcher will be used for all created connections.
         self.dispatcher = Dispatcher()
         self.mediator_connection: Optional[Connection] = None
+        self._mediator_connection_event = asyncio.Event()
         self.agent_connection: Optional[Connection] = None
         self.agent_invitation: Optional[str] = None
 
@@ -172,6 +175,22 @@ class Agent:
         deleted, there is no need to call this method.
         """
         self.connections[verkey] = conn
+
+    async def mediator_invite_received(self) -> Connection:
+        """Await event notifying that mediator invite has been received."""
+        await self._mediator_connection_event.wait()
+        if not self.mediator_connection:
+            raise RuntimeError("Mediator connection event triggered without set")
+        return self.mediator_connection
+
+    async def receive_mediator_invite(self, invite: str) -> Connection:
+        """Receive mediator invitation."""
+        connections = Connections.get()
+        self.mediator_connection = await connections.receive_invite_url(
+            invite, endpoint=""
+        )
+        self._mediator_connection_event.set()
+        return self.mediator_connection
 
     def route_method(self, msg_type: str) -> Callable:
         """Register route decorator."""

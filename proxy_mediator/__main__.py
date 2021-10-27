@@ -21,7 +21,7 @@ def config():
     )
     parser.add_argument("--port", env_var="PORT", type=str, required=True)
     parser.add_argument(
-        "--mediator-invite", env_var="MEDIATOR_INVITE", type=str, required=True
+        "--mediator-invite", env_var="MEDIATOR_INVITE", type=str, required=False
     )
     parser.add_argument("--endpoint", env_var="ENDPOINT", type=str, required=True)
     parser.add_argument("--log-level", env_var="LOG_LEVEL", type=str, default="WARNING")
@@ -90,6 +90,7 @@ async def main():
 
     # Modules
     connections = Connections(args.endpoint)
+    Connections.set(connections)
     coordinate_mediation = CoordinateMediation()
 
     # Routes
@@ -100,10 +101,17 @@ async def main():
     async with webserver(args.port, agent) as loop:
         # Connect to mediator by processing passed in invite
         # All these operations must take place without an endpoint
-        mediator_connection = await connections.receive_invite_url(
-            args.mediator_invite, endpoint=""
-        )
-        agent.mediator_connection = mediator_connection
+        if not args.mediator_invite:
+            LOGGER.debug("Awaiting mediator invitation over HTTP")
+            print("Awaiting mediator invitation over HTTP")
+            mediator_connection = await agent.mediator_invite_received()
+        else:
+            LOGGER.debug(
+                "Receiving mediator invitation from input: %s", args.mediator_invite
+            )
+            mediator_connection = await agent.receive_mediator_invite(
+                args.mediator_invite
+            )
         await mediator_connection.completion()
 
         # Request mediation and send keylist update
