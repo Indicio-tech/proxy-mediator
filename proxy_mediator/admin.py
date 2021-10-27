@@ -2,18 +2,20 @@ import logging
 
 from aiohttp import web
 
-from .agent import Agent
+from .protocols.connections import Connections
 
 LOGGER = logging.getLogger(__name__)
 
 
-def register_routes(agent: Agent, app: web.Application):
+def register_routes(app: web.Application):
+    connections = Connections.get()
+
     async def retrieve_agent_invitation(request):
-        return web.json_response({"invitation_url": agent.agent_invitation})
+        return web.json_response({"invitation_url": connections.agent_invitation})
 
     async def receive_mediator_invitation(request: web.Request):
         body = await request.json()
-        await agent.receive_mediator_invite(body["invitation_url"])
+        await connections.receive_mediator_invite(body["invitation_url"])
         return web.Response(status=200)
 
     app.add_routes(

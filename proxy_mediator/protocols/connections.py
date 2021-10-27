@@ -2,16 +2,16 @@
     https://github.com/hyperledger/aries-rfcs/blob/main/features/0160-connection-protocol
 """
 
+import asyncio
 from base64 import urlsafe_b64decode
 from contextvars import ContextVar
 import json
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 from ..agent import Connection, Agent, ConnectionMachine
 from aries_staticagent import Message, crypto
 from aries_staticagent.connection import Target
-from aries_staticagent.dispatcher import Dispatcher, Handler
 from aries_staticagent.module import Module, ModuleRouter
 from ..error import ProtocolError
 
@@ -41,11 +41,10 @@ class Connections(Module):
         self.endpoint = endpoint
         self.connections: Dict[str, Connection] = connections if connections else {}
 
-        # We want each connection created by this module to share the same routes
-        self.dispatcher = Dispatcher()
-        self.dispatcher.add_handlers(
-            [Handler(msg_type, func) for msg_type, func in self.routes.items()]
-        )
+        self.mediator_connection: Optional[Connection] = None
+        self._mediator_connection_event = asyncio.Event()
+        self.agent_connection: Optional[Connection] = None
+        self.agent_invitation: Optional[str] = None
 
     def create_invitation(self, *, multiuse: bool = False):
         """Create and return an invite."""
@@ -66,6 +65,19 @@ class Connections(Module):
         )
         LOGGER.debug("Created invitation: %s", invitation_url)
         return connection, invitation_url
+
+    async def mediator_invite_received(self) -> Connection:
+        """Await event notifying that mediator invite has been received."""
+        await self._mediator_connection_event.wait()
+        if not self.mediator_connection:
+            raise RuntimeError("Mediator connection event triggered without set")
+        return self.mediator_connection
+
+    async def receive_mediator_invite(self, invite: str) -> Connection:
+        """Receive mediator invitation."""
+        self.mediator_connection = await self.receive_invite_url(invite, endpoint="")
+        self._mediator_connection_event.set()
+        return self.mediator_connection
 
     async def receive_invite_url(self, invite: str, **kwargs):
         """Process an invitation from a URL."""

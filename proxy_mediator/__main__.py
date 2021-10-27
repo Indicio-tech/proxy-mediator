@@ -66,7 +66,7 @@ async def webserver(port: int, agent: Agent):
     app.add_routes([web.post("/", handle)])
 
     # Setup "Admin" routes
-    admin.register_routes(agent, app)
+    admin.register_routes(app)
 
     runner = web.AppRunner(app)
     await runner.setup()
@@ -95,8 +95,9 @@ async def main():
 
     # Routes
     agent.route_module(BasicMessage())
-    agent.route_module(coordinate_mediation)
     agent.route_module(Routing())
+    agent.route_module(connections)
+    agent.route_module(coordinate_mediation)
 
     async with webserver(args.port, agent) as loop:
         # Connect to mediator by processing passed in invite
@@ -104,12 +105,12 @@ async def main():
         if not args.mediator_invite:
             LOGGER.debug("Awaiting mediator invitation over HTTP")
             print("Awaiting mediator invitation over HTTP")
-            mediator_connection = await agent.mediator_invite_received()
+            mediator_connection = await connections.mediator_invite_received()
         else:
             LOGGER.debug(
                 "Receiving mediator invitation from input: %s", args.mediator_invite
             )
-            mediator_connection = await agent.receive_mediator_invite(
+            mediator_connection = await connections.receive_mediator_invite(
                 args.mediator_invite
             )
         await mediator_connection.completion()
@@ -124,10 +125,10 @@ async def main():
 
         # Connect to agent by creating invite and awaiting connection completion
         agent_connection, invite = connections.create_invitation()
-        agent.agent_invitation = invite
+        connections.agent_invitation = invite
         print("Invitation URL:", invite, flush=True)
         agent_connection = await agent_connection.completion()
-        agent.agent_connection = agent_connection
+        connections.agent_connection = agent_connection
         print("Connection completed successfully")
 
         # TODO Start self repairing WS connection to mediator to retrieve
