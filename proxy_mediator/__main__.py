@@ -6,9 +6,10 @@ import logging
 from aiohttp import web
 from configargparse import ArgumentParser, YAMLConfigFileParser
 
-from . import admin, CONNECTIONS
-from .connections import Connections
-from .protocols import BasicMessage, CoordinateMediation, Routing
+from . import admin
+from .agent import Agent
+from .message_retriever import MessageRetriever
+from .protocols import BasicMessage, Connections, CoordinateMediation, Routing
 
 
 LOGGER = logging.getLogger("proxy_mediator")
@@ -37,7 +38,7 @@ def config():
 
 
 @asynccontextmanager
-async def webserver(port: int, connections: Connections):
+async def webserver(port: int, agent: Agent):
     """Listen for messages and handle using Connections."""
 
     async def sleep():
@@ -53,7 +54,7 @@ async def webserver(port: int, connections: Connections):
         packed_message = await request.read()
         LOGGER.debug("Received packed message: %s", packed_message)
         try:
-            response = await connections.handle_message(packed_message)
+            response = await agent.handle_message(packed_message)
             if response:
                 LOGGER.debug("Returning response over HTTP")
                 return web.Response(body=response)
@@ -66,7 +67,7 @@ async def webserver(port: int, connections: Connections):
     app.add_routes([web.post("/", handle)])
 
     # Setup "Admin" routes
-    admin.register_routes(connections, app)
+    admin.register_routes(app)
 
     runner = web.AppRunner(app)
     await runner.setup()
@@ -85,14 +86,21 @@ async def main():
     args = config()
     print(f"Starting proxy with endpoint: {args.endpoint}", flush=True)
 
-    connections = Connections(args.endpoint)
-    CONNECTIONS.set(connections)
-    connections.route_module(BasicMessage())
-    coordinate_mediation = CoordinateMediation()
-    connections.route_module(coordinate_mediation)
-    connections.route_module(Routing())
+    agent = Agent()
+    Agent.set(agent)
 
-    async with webserver(args.port, connections) as loop:
+    # Modules
+    connections = Connections(args.endpoint)
+    Connections.set(connections)
+    coordinate_mediation = CoordinateMediation()
+
+    # Routes
+    agent.route_module(BasicMessage())
+    agent.route_module(Routing())
+    agent.route_module(connections)
+    agent.route_module(coordinate_mediation)
+
+    async with webserver(args.port, agent):
         # Connect to mediator by processing passed in invite
         # All these operations must take place without an endpoint
         if not args.mediator_invite:
@@ -124,9 +132,13 @@ async def main():
         connections.agent_connection = agent_connection
         print("Connection completed successfully")
 
-        # TODO Start self repairing WS connection to mediator to retrieve
-        # messages as a separate task
-        await loop()
+        print("Waiting a moment before beginning message retriever")
+        await asyncio.sleep(3)
+        retriever = MessageRetriever(mediator_connection)
+        try:
+            await retriever.start()
+        finally:
+            await retriever.stop()
 
 
 if __name__ == "__main__":
