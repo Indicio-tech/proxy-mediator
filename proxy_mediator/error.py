@@ -10,10 +10,14 @@ from aries_staticagent.message import BaseMessage, Message
 from inflection import dasherize, underscore
 from pydantic.main import BaseModel, Extra
 
-from .connections import Connection
+from .agent import Connection
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+class ProtocolError(Exception):
+    """Raised when an error occurs in a protocol."""
 
 
 class Reportable(Exception, ABC):

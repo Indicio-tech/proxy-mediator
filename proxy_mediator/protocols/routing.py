@@ -1,12 +1,17 @@
 """Routing protocol."""
+import json
+import logging
 from typing import Any, Dict
 
-from aries_staticagent.message import BaseMessage
+from aries_staticagent.message import BaseMessage, Message
 from aries_staticagent.module import Module, ModuleRouter
 
-from .. import CONNECTIONS, message_as
-from ..connections import Connection
+from ..agent import Connection
 from ..error import Reportable
+from .connections import Connections
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class ForwardError(Reportable):
@@ -36,6 +41,7 @@ class ForwardFromUnauthorizedConnection(ForwardError):
 
 
 class Forward(BaseMessage):
+    msg_type = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/routing/1.0/forward"
     to: str
     msg: Dict[str, Any]
 
@@ -47,10 +53,10 @@ class Routing(Module):
     route = ModuleRouter()
 
     @route
-    @message_as(Forward)
-    async def forward(self, msg: Forward, conn: Connection):
+    async def forward(self, msg: Message, conn: Connection):
         """Handle forward message."""
-        connections = CONNECTIONS.get()
+        fwd = Forward.parse_obj(msg.dict(by_alias=True))
+        connections = Connections.get()
         if not connections.agent_connection:
             raise AgentConnectionNotEstablished(
                 "Connection to the agent has not yet been established."
@@ -68,4 +74,7 @@ class Routing(Module):
         # Assume forward is for the agent connection and just send.
         # Do not perform any wrapping on message (send as "plaintext") because
         # message is already packed.
-        await connections.agent_connection.send_async(msg.msg, plaintext=True)
+        assert connections.agent_connection.target
+        endpoint = connections.agent_connection.target.endpoint
+        assert endpoint
+        await connections.agent_connection._send(json.dumps(fwd.msg).encode(), endpoint)
