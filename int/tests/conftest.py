@@ -41,9 +41,20 @@ AGENT_BOB = getenv("AGENT_BOB", "http://agent_bob:4012")
 EXTERNAL_MEDIATOR = getenv("EXTERNAL_MEDIATOR", "http://external_mediator:4013")
 
 
-async def get_mediator_invite(mediator: Client) -> str:
+async def get_proxy_invite() -> dict:
+    async with AsyncClient() as client:
+        url = None
+        while url is None:
+            r = await client.get(f"{PROXY}/retrieve_agent_invitation")
+            url = r.json()["invitation_url"]
+            if not url:
+                await asyncio.sleep(1)
+        return json.loads(urlsafe_b64decode(url.split("c_i=")[1]))
+
+
+async def get_mediator_invite(external_mediator: Client) -> str:
     invitation = await create_invitation.asyncio(
-        client=mediator, json_body=CreateInvitationRequest()
+        client=external_mediator, json_body=CreateInvitationRequest()
     )
     if not invitation:
         raise RuntimeError("Failed to retrieve invitation from mediator")
@@ -51,7 +62,7 @@ async def get_mediator_invite(mediator: Client) -> str:
     return invitation.invitation_url
 
 
-async def proxy_receive_mediator_invite(mediator: Client, invite: str):
+async def proxy_receive_mediator_invite(external_mediator: Client, invite: str):
     async with AsyncClient() as client:
         r = await client.post(
             f"{PROXY}/receive_mediator_invitation", json={"invitation_url": invite}
@@ -60,14 +71,14 @@ async def proxy_receive_mediator_invite(mediator: Client, invite: str):
 
     # Get mediator mediation requests
     requests = await get_mediation_requests.asyncio(
-        client=mediator, state=GetMediationRequestsState.GRANTED
+        client=external_mediator, state=GetMediationRequestsState.GRANTED
     )
     assert requests
     assert not isinstance(requests.results, Unset)
     while not requests.results:
         await asyncio.sleep(1)
         requests = await get_mediation_requests.asyncio(
-            client=mediator, state=GetMediationRequestsState.GRANTED
+            client=external_mediator, state=GetMediationRequestsState.GRANTED
         )
         assert requests
         assert not isinstance(requests, Unset)
@@ -84,9 +95,9 @@ async def get_proxy_invite() -> dict:
         return json.loads(urlsafe_b64decode(url.split("c_i=")[1]))
 
 
-async def agent_receive_invitation(agent: Client, invite: dict) -> ConnRecord:
+async def agent_receive_invitation(agent_bob: Client, invite: dict) -> ConnRecord:
     conn_record = await receive_invitation.asyncio(
-        client=agent, json_body=ReceiveInvitationRequest.from_dict(invite)
+        client=agent_bob, json_body=ReceiveInvitationRequest.from_dict(invite)
     )
     if not conn_record:
         raise RuntimeError("Failed to receive invitation on agent")
@@ -95,7 +106,7 @@ async def agent_receive_invitation(agent: Client, invite: dict) -> ConnRecord:
         await asyncio.sleep(1)
         assert isinstance(conn_record.connection_id, str)
         conn_record = await get_connection.asyncio(
-            conn_record.connection_id, client=agent
+            conn_record.connection_id, client=agent_bob
         )
         assert conn_record
 
@@ -129,12 +140,12 @@ async def agent_set_default_mediator(agent: Client, mediation_id: str):
     return result
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)  # scope="session",
 async def setup():
     agent_bob = Client(base_url=AGENT_BOB)
-    mediator = Client(base_url=EXTERNAL_MEDIATOR)
-    mediator_invite = await get_mediator_invite(mediator)
-    await proxy_receive_mediator_invite(mediator, mediator_invite)
+    external_mediator = Client(base_url=EXTERNAL_MEDIATOR)
+    mediator_invite = await get_mediator_invite(external_mediator)
+    await proxy_receive_mediator_invite(external_mediator, mediator_invite)
     invite = await get_proxy_invite()
     conn_record = await agent_receive_invitation(agent_bob, invite)
 
