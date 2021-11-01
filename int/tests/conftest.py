@@ -113,9 +113,9 @@ async def agent_receive_invitation(agent_bob: Client, invite: dict) -> ConnRecor
     return conn_record
 
 
-async def agent_request_mediation_from_proxy(agent: Client, conn_id: str):
+async def agent_request_mediation_from_proxy(agent_bob: Client, conn_id: str):
     mediation_record = await post_mediation_request_conn_id.asyncio(
-        conn_id=conn_id, client=agent, json_body=MediationCreateRequest()
+        conn_id=conn_id, client=agent_bob, json_body=MediationCreateRequest()
     )
     if not mediation_record:
         raise RuntimeError(f"Failed to request mediation from {conn_id}")
@@ -124,16 +124,16 @@ async def agent_request_mediation_from_proxy(agent: Client, conn_id: str):
         await asyncio.sleep(1)
         assert isinstance(mediation_record.mediation_id, str)
         mediation_record = await get_mediation_requests_mediation_id.asyncio(
-            mediation_record.mediation_id, client=agent
+            mediation_record.mediation_id, client=agent_bob
         )
         assert mediation_record
 
     return mediation_record
 
 
-async def agent_set_default_mediator(agent: Client, mediation_id: str):
+async def agent_set_default_mediator(agent_bob: Client, mediation_id: str):
     result = await put_mediation_mediation_id_default_mediator.asyncio(
-        mediation_id, client=agent
+        mediation_id, client=agent_bob
     )
     if not result:
         raise RuntimeError(f"Failed to set default mediator to {mediation_id}")
