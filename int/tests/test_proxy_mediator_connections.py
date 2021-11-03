@@ -1,4 +1,5 @@
 import pytest
+import asyncio
 from acapy_client import Client
 from acapy_client.api.connection import (
     get_connection,
@@ -18,8 +19,53 @@ from acapy_client.models.receive_invitation_request import ReceiveInvitationRequ
 from acapy_client.models.create_invitation_request import CreateInvitationRequest
 from acapy_client.models.invitation_result import InvitationResult
 from acapy_client.models.connection_list import ConnectionList
+from acapy_client.types import Unset
 
+from typing import Any, Awaitable, Callable, Optional, TypeVar, Union
+from typing_extensions import TypeGuard
+from functools import partial
 from os import getenv
+
+
+Subject = TypeVar("Subject", bound=Any)
+
+
+async def poll_until_condition(
+    condition: Callable[[Subject], bool],
+    retrieve: Callable[[], Awaitable[Subject]],
+    *,
+    initial: Optional[Subject] = None,
+    timeout: float = 5.0,
+    interval: float = 1.0
+) -> Subject:
+    async def _timeboxed(subject: Subject):
+        while not condition(subject):
+            await asyncio.sleep(interval)
+            subject = await retrieve()
+            assert subject
+        return subject
+
+    initial = initial or await retrieve()
+    assert initial
+    return await asyncio.wait_for(_timeboxed(initial), timeout)
+
+
+async def record_state(
+    state: str,
+    retrieve: Callable[[], Awaitable[Subject]],
+    *,
+    initial: Optional[Subject] = None,
+    timeout: float = 5.0,
+    interval: float = 1.0
+) -> Subject:
+    """Wait for the state of the record to change to a given value."""
+    return await poll_until_condition(
+        lambda rec: rec.state == state,
+        retrieve,
+        initial=initial,
+        timeout=timeout,
+        interval=interval,
+    )
 
 
 @pytest.fixture(scope="session")
@@ -80,3 +126,26 @@ async def test_connection_from_alice(
         conn_id=connection[1].connection_id, client=agent_bob
     )
     print("connection state (on Bob)", connection_bob.state)
+
+    async def _retrieve() -> ConnRecord:
+        connection_alice = await get_connection.asyncio(
+            conn_id=connection[0].connection_id,
+            client=agent_alice,
+        )
+        assert connection_alice
+        return connection_alice
+
+    await poll_until_condition(
+        lambda conns: bool(not isinstance(conns.state, Unset) and conns.state),
+        _retrieve,
+    )
+
+    async def _retrieve(connection_id: str) -> ConnRecord:
+        retrieved = await get_connection.asyncio(
+            conn_id=connection[0].connection_id,
+            client=agent_alice,
+        )
+        assert retrieved
+        return retrieved
+
+    await record_state("active", partial(_retrieve, connection[0].connection_id))
