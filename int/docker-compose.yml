@@ -39,7 +39,7 @@ services:
       start --label external_mediator -it http 0.0.0.0 4013 -it ws 0.0.0.0 3002 -ot http -e http://reverse-proxy
       ws://reverse-proxy/ws --no-ledger --admin 0.0.0.0 4003 --admin-insecure-mode
       --debug-connections --auto-accept-invites --auto-accept-requests
-      --auto-ping-connection --log-level debug --open-mediation
+      --auto-ping-connection --log-level debug --open-mediation --enable-undelivered-queue
     ports:
       - 4013:4013
       - 4003:4003
