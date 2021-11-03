@@ -140,7 +140,12 @@ async def agent_set_default_mediator(agent_bob: Client, mediation_id: str):
     return result
 
 
-@pytest.fixture(autouse=True)  # scope="session",
+@pytest.fixture(scope="session")
+def event_loop():
+    return asyncio.get_event_loop()
+
+
+@pytest.fixture(autouse=True, scope="session")
 async def setup():
     agent_bob = Client(base_url=AGENT_BOB)
     external_mediator = Client(base_url=EXTERNAL_MEDIATOR)
