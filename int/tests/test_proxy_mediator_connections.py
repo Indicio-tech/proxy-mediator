@@ -18,7 +18,6 @@ from acapy_client.models.receive_invitation_request import ReceiveInvitationRequ
 from acapy_client.models.create_invitation_request import CreateInvitationRequest
 from acapy_client.models.invitation_result import InvitationResult
 from acapy_client.models.connection_list import ConnectionList
-from httpx import AsyncClient
 
 from os import getenv
 
@@ -30,54 +29,54 @@ def agent_alice():
 
 
 @pytest.fixture(scope="session")
-def external_mediator():
-    EXTERNAL_MEDIATOR = getenv("EXTERNAL_MEDIATOR", "http://external_mediator:4013")
-    return Client(base_url=EXTERNAL_MEDIATOR)
-
-
-@pytest.fixture(scope="session")
 def agent_bob():
     AGENT_BOB = getenv("AGENT_BOB", "http://agent_bob:4012")
     return Client(base_url=AGENT_BOB)
 
 
 @pytest.fixture
-async def create_invite(agent_alice: Client):
-    return await create_invitation.asyncio(
-        client=agent_alice,
-        json_body=CreateInvitationRequest(),
-        auto_accept=True,
-    )
+async def agent_fixture():
+    def _agent_fixture(agent):
+        return agent
+
+    yield _agent_fixture
 
 
 @pytest.fixture
-async def receive_invite(agent_bob: Client, create_invite):
-    invitation = create_invite
-    return await receive_invitation.asyncio(
-        client=agent_bob,
-        json_body=ReceiveInvitationRequest.from_dict(invitation.invitation.to_dict()),
-        auto_accept=True,
-    )
+async def create_connection(agent_fixture):
+    """Factory fixture to create a connection with
+    sender and receiver as parameters"""
+
+    async def _create_connection(sender: Client, receiver: Client):
+        sender = agent_fixture(sender)
+        receiver = agent_fixture(receiver)
+        invite = await create_invitation.asyncio(
+            client=sender,
+            json_body=CreateInvitationRequest(),
+            auto_accept=True,
+        )
+        connection = await receive_invitation.asyncio(
+            client=receiver,
+            json_body=ReceiveInvitationRequest.from_dict(invite.invitation.to_dict()),
+            auto_accept=True,
+        )
+        return (invite, connection)
+
+    yield _create_connection
 
 
 @pytest.mark.asyncio
-async def test_proxy_mediator_connections(
-    create_invite, receive_invite, agent_bob, agent_alice, external_mediator
+async def test_connection_from_alice(
+    create_connection, agent_fixture, agent_alice, agent_bob
 ):
-    invite = create_invite
-    assert isinstance(invite, InvitationResult)
+    connection = await create_connection(agent_alice, agent_bob)
+    assert connection[0].invitation.service_endpoint == "http://agent_alice:4011"
 
-    connection = receive_invite
-    assert isinstance(connection, ConnRecord)
-
-    connection_list_alice = await get_connections.asyncio(client=agent_alice)
-    connection_list_external_mediator = await get_connections.asyncio(
-        client=external_mediator
+    invitation_alice = await get_connection.asyncio(
+        conn_id=connection[0].connection_id, client=agent_alice
     )
-    # TODO add tests for state of connections
-
-    endpoint = await get_connections_conn_id_endpoints.asyncio(
-        client=agent_bob,
-        conn_id=connection.connection_id,
+    print("invitation state (on Alice)", invitation_alice.state)
+    connection_bob = await get_connection.asyncio(
+        conn_id=connection[1].connection_id, client=agent_bob
     )
-    assert endpoint.their_endpoint == "http://proxy:3000"
+    print("connection state (on Bob)", connection_bob.state)
