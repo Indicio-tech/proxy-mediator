@@ -61,21 +61,30 @@ async def create_connection(agent_fixture):
     yield _create_connection
 
 
-@pytest.mark.asyncio
-async def test_connection_from_alice(create_connection, agent_alice, agent_bob):
-    invite, connection = await create_connection(agent_alice, agent_bob)
-    assert invite.invitation.service_endpoint == "http://agent_alice:4011"
+agents = [
+    ("agent_alice", "agent_bob", "http://agent_alice:4011"),
+    ("agent_bob", "agent_alice", "http://reverse-proxy"),
+]
 
-    invitation_alice = await get_connection.asyncio(
-        conn_id=invite.connection_id, client=agent_alice
+
+@pytest.mark.parametrize("sender, receiver, endpoint", agents)
+@pytest.mark.asyncio
+async def test_connection_from_alice(
+    sender, receiver, endpoint, create_connection, request
+):
+    sender = request.getfixturevalue(sender)
+    receiver = request.getfixturevalue(receiver)
+    invite, connection = await create_connection(sender, receiver)
+    assert invite.invitation.service_endpoint == endpoint
+
+    invitation_sender = await get_connection.asyncio(
+        conn_id=invite.connection_id, client=sender
     )
-    assert invitation_alice
-    print("invitation state (on Alice)", invitation_alice.state)
-    connection_bob = await get_connection.asyncio(
-        conn_id=connection.connection_id, client=agent_bob
+    assert invitation_sender
+    connection_receiver = await get_connection.asyncio(
+        conn_id=connection.connection_id, client=receiver
     )
-    assert connection_bob
-    print("connection state (on Bob)", connection_bob.state)
+    assert connection_receiver
 
     async def _retrieve(client: Client, connection_id: str) -> ConnRecord:
         retrieved = await get_connection.asyncio(
@@ -85,37 +94,5 @@ async def test_connection_from_alice(create_connection, agent_alice, agent_bob):
         assert retrieved
         return retrieved
 
-    await record_state("active", partial(_retrieve, agent_alice, invite.connection_id))
-    await record_state(
-        "active", partial(_retrieve, agent_bob, connection.connection_id)
-    )
-
-
-@pytest.mark.asyncio
-async def test_connection_from_bob(create_connection, agent_alice, agent_bob):
-    invite, connection = await create_connection(agent_bob, agent_alice)
-    assert invite.invitation.service_endpoint == "http://reverse-proxy"
-
-    invitation_bob = await get_connection.asyncio(
-        conn_id=invite.connection_id, client=agent_bob
-    )
-    assert invitation_bob
-    print("invitation state (on Bob)", invitation_bob.state)
-    connection_alice = await get_connection.asyncio(
-        conn_id=connection.connection_id, client=agent_alice
-    )
-    assert connection_alice
-    print("connection state (on Alice)", connection_alice.state)
-
-    async def _retrieve(client: Client, connection_id: str) -> ConnRecord:
-        retrieved = await get_connection.asyncio(
-            conn_id=connection_id,
-            client=client,
-        )
-        assert retrieved
-        return retrieved
-
-    await record_state("active", partial(_retrieve, agent_bob, invite.connection_id))
-    await record_state(
-        "active", partial(_retrieve, agent_alice, connection.connection_id)
-    )
+    await record_state("active", partial(_retrieve, sender, invite.connection_id))
+    await record_state("active", partial(_retrieve, receiver, connection.connection_id))
