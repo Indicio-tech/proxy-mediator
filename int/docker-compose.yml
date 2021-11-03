@@ -36,13 +36,24 @@ services:
   external_mediator:
     image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
     command: >
-      start --label external_mediator -it http 0.0.0.0 4013 -ot http -e http://external_mediator:4013
-      --no-ledger --admin 0.0.0.0 4003 --admin-insecure-mode
+      start --label external_mediator -it http 0.0.0.0 4013 -it ws 0.0.0.0 3002 -ot http -e http://reverse-proxy
+      ws://reverse-proxy/ws --no-ledger --admin 0.0.0.0 4003 --admin-insecure-mode
       --debug-connections --auto-accept-invites --auto-accept-requests
       --auto-ping-connection --log-level debug --open-mediation
     ports:
       - 4013:4013
       - 4003:4003
+
+  reverse-proxy:
+    image: nginx
+    volumes:
+      - ../docker/nginx.conf:/etc/nginx/templates/default.conf.template:z
+    environment:
+      MEDIATOR: external_mediator
+      HTTP_PORT: 4013
+      WS_PORT: 3002
+    ports:
+      - 8080:80
 
 
   tests:
