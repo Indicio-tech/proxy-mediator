@@ -77,13 +77,15 @@ async def test_connection_from_alice(create_connection, agent_alice, agent_bob):
     assert connection_bob
     print("connection state (on Bob)", connection_bob.state)
 
-    async def _retrieve(connection_id: str) -> ConnRecord:
+    async def _retrieve(client: Client, connection_id: str) -> ConnRecord:
         retrieved = await get_connection.asyncio(
             conn_id=connection_id,
-            client=agent_alice,
+            client=client,
         )
         assert retrieved
         return retrieved
 
-    await record_state("active", partial(_retrieve, invite.connection_id))
-    await record_state("active", partial(_retrieve, connection.connection_id))
+    await record_state("active", partial(_retrieve, agent_alice, invite.connection_id))
+    await record_state(
+        "active", partial(_retrieve, agent_bob, connection.connection_id)
+    )
