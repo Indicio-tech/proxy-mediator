@@ -31,6 +31,7 @@ from acapy_client.models.create_invitation_request import CreateInvitationReques
 from acapy_client.models.mediation_create_request import MediationCreateRequest
 from acapy_client.models.receive_invitation_request import ReceiveInvitationRequest
 from acapy_client.models.get_mediation_requests_state import GetMediationRequestsState
+from acapy_client.models.mediation_record import MediationRecord
 from acapy_client.types import Unset
 
 from httpx import AsyncClient
@@ -110,14 +111,14 @@ async def agent_request_mediation_from_proxy(agent_bob: Client, conn_id: str):
     if not mediation_record:
         raise RuntimeError(f"Failed to request mediation from {conn_id}")
 
-    while mediation_record.state != "granted":
-        await asyncio.sleep(1)
-        assert isinstance(mediation_record.mediation_id, str)
-        mediation_record = await get_mediation_requests_mediation_id.asyncio(
-            mediation_record.mediation_id, client=agent_bob
+    async def _retrieve(mediation_record: str) -> MediationRecord:
+        retrieved = await get_mediation_requests_mediation_id.asyncio(
+            mediation_record, client=agent_bob
         )
-        assert mediation_record
+        assert retrieved
+        return retrieved
 
+    await record_state("granted", partial(_retrieve, mediation_record.mediation_id))
     return mediation_record
 
 
