@@ -29,21 +29,11 @@ def agent_bob():
 
 
 @pytest.fixture
-async def agent_fixture():
-    def _agent_fixture(agent):
-        return agent
-
-    yield _agent_fixture
-
-
-@pytest.fixture
-async def create_connection(agent_fixture):
+async def create_connection():
     """Factory fixture to create a connection with
     sender and receiver as parameters"""
 
     async def _create_connection(sender: Client, receiver: Client):
-        sender = agent_fixture(sender)
-        receiver = agent_fixture(receiver)
         invite = await create_invitation.asyncio(
             client=sender,
             json_body=CreateInvitationRequest(),
@@ -76,15 +66,6 @@ async def test_connection_from_alice(
     receiver = request.getfixturevalue(receiver)
     invite, connection = await create_connection(sender, receiver)
     assert invite.invitation.service_endpoint == endpoint
-
-    invitation_sender = await get_connection.asyncio(
-        conn_id=invite.connection_id, client=sender
-    )
-    assert invitation_sender
-    connection_receiver = await get_connection.asyncio(
-        conn_id=connection.connection_id, client=receiver
-    )
-    assert connection_receiver
 
     async def _retrieve(client: Client, connection_id: str) -> ConnRecord:
         retrieved = await get_connection.asyncio(
