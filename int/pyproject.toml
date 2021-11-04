@@ -2,7 +2,7 @@
 name = "proxy-mediator-int"
 version = "0.1.0"
 description = "Integration tests for proxy mediator"
-authors = ["Char Howland <char@indicio.tech>"]
+authors = ["Char Howland <char@indicio.tech>", "Daniel Bluhm <dbluhm@pm.me>"]
 license = "Apache-2.0"
 
 [tool.poetry.dependencies]
