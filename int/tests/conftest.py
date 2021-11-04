@@ -87,17 +87,6 @@ async def proxy_receive_mediator_invite(external_mediator: Client, invite: str):
     )
 
 
-async def get_proxy_invite() -> dict:
-    async with AsyncClient() as client:
-        url = None
-        while url is None:
-            r = await client.get(f"{PROXY}/retrieve_agent_invitation")
-            url = r.json()["invitation_url"]
-            if not url:
-                await asyncio.sleep(1)
-        return json.loads(urlsafe_b64decode(url.split("c_i=")[1]))
-
-
 async def agent_receive_invitation(agent_bob: Client, invite: dict) -> ConnRecord:
     conn_record = await receive_invitation.asyncio(
         client=agent_bob, json_body=ReceiveInvitationRequest.from_dict(invite)
