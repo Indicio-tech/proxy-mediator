@@ -76,3 +76,4 @@ services:
       - agent_alice
       - agent_bob
       - external_mediator
+      - reverse-proxy
