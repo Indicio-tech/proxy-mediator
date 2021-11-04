@@ -12,6 +12,7 @@ import asyncio
 from base64 import urlsafe_b64decode
 import json
 from os import getenv
+from functools import partial
 
 from acapy_client import Client
 from acapy_client.api.connection import (
@@ -34,6 +35,9 @@ from acapy_client.types import Unset
 
 from httpx import AsyncClient
 import pytest
+
+from . import record_state
+from . import poll_until_condition
 
 
 PROXY = getenv("PROXY", "http://proxy:3000")
@@ -70,18 +74,17 @@ async def proxy_receive_mediator_invite(external_mediator: Client, invite: str):
         assert not r.is_error
 
     # Get mediator mediation requests
-    requests = await get_mediation_requests.asyncio(
-        client=external_mediator, state=GetMediationRequestsState.GRANTED
-    )
-    assert requests
-    assert not isinstance(requests.results, Unset)
-    while not requests.results:
-        await asyncio.sleep(1)
+    async def _retrieve():
         requests = await get_mediation_requests.asyncio(
             client=external_mediator, state=GetMediationRequestsState.GRANTED
         )
         assert requests
-        assert not isinstance(requests, Unset)
+        return requests
+
+    await poll_until_condition(
+        lambda reqs: bool(not isinstance(reqs.results, Unset) and reqs.results),
+        _retrieve,
+    )
 
 
 async def get_proxy_invite() -> dict:
@@ -102,14 +105,12 @@ async def agent_receive_invitation(agent_bob: Client, invite: dict) -> ConnRecor
     if not conn_record:
         raise RuntimeError("Failed to receive invitation on agent")
 
-    while conn_record.state != "active":
-        await asyncio.sleep(1)
-        assert isinstance(conn_record.connection_id, str)
-        conn_record = await get_connection.asyncio(
-            conn_record.connection_id, client=agent_bob
-        )
-        assert conn_record
+    async def _retrieve(connection_id: str) -> ConnRecord:
+        retrieved = await get_connection.asyncio(connection_id, client=agent_bob)
+        assert retrieved
+        return retrieved
 
+    await record_state("active", partial(_retrieve, conn_record.connection_id))
     return conn_record
 
 
