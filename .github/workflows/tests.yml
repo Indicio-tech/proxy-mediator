@@ -48,17 +48,17 @@ jobs:
           poetry install
     - name: Run unit tests with pytest
       run: |
-        poetry run pytest
+        poetry run pytest ./tests
 
-        #  int:
-        #    name: Integration Tests
-        #    runs-on: ubuntu-latest
-        #    steps:
-        #    - uses: actions/checkout@v2
-        #    - name: Run integration tests
-        #      run: |
-        #        docker-compose -f int/docker-compose.yml run tests
-        #    - name: Clean up integration tests
-        #      if: always()
-        #      run: |
-        #        docker-compose -f int/docker-compose.yml down
+  int:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run integration tests
+      run: |
+        docker-compose -f ./int/docker-compose.yml run tests
+    - name: Clean up integration tests
+      if: always()
+      run: |
+        docker-compose -f ./int/docker-compose.yml down

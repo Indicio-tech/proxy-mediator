@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "proxy-mediator-int"
+version = "0.1.0"
+description = "Integration tests for proxy mediator"
+authors = ["Char Howland <char@indicio.tech>", "Daniel Bluhm <dbluhm@pm.me>"]
+license = "Apache-2.0"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+pytest = "^6.2.5"
+pytest-asyncio = "^0.16.0"
+acapy-client = {git = "https://github.com/Indicio-tech/acapy-client.git", rev = "0.7.1"}
+httpx = "^0.15.4"
+
+[tool.poetry.dev-dependencies]
+black = "^21.9b0"
+flake8 = "^4.0.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
