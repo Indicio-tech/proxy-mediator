@@ -1,4 +1,5 @@
 import asyncio
+from contextvars import ContextVar
 import logging
 from typing import List, Optional
 from aries_staticagent.message import Message
@@ -51,9 +52,20 @@ class MediationRequest:
         return self._event.is_set()
 
 
+VAR: ContextVar["CoordinateMediation"] = ContextVar("coordinate_mediation")
+
+
 class CoordinateMediation(Module):
     protocol = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/coordinate-mediation/1.0"
     route = ModuleRouter(protocol)
+
+    @classmethod
+    def get(cls) -> "CoordinateMediation":
+        return VAR.get()
+
+    @classmethod
+    def set(cls, value: "CoordinateMediation"):
+        VAR.set(value)
 
     def __init__(self):
         super().__init__()

@@ -19,5 +19,9 @@ WORKDIR /app
 COPY --from=base /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
+ENV WAIT_VERSION 2.7.2
+ADD https://github.com/ufoscout/docker-compose-wait/releases/download/$WAIT_VERSION/wait /wait
+RUN chmod +x /wait
+
 COPY proxy_mediator/ proxy_mediator/
-ENTRYPOINT ["/bin/sh", "-c", "python -m proxy_mediator \"$@\"", "--"]
+ENTRYPOINT ["/bin/sh", "-c", "/wait && python -m proxy_mediator \"$@\"", "--"]

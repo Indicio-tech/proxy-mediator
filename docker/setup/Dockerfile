@@ -4,7 +4,8 @@ RUN apk update && \
   apk add \
   build-base \
   curl \
-  libffi-dev
+  libffi-dev \
+  git
 
 ENV POETRY_HOME=/opt/poetry \
     VENV=/usr/src/app/.venv

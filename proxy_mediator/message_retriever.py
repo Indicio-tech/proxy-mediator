@@ -24,7 +24,7 @@ class MessageRetriever:
     def __init__(self, conn: Connection, poll_interval: float = 5.0):
         if not conn.target or not conn.target.endpoint:
             raise ValueError("Connection must have endpoint for WS polling")
-        self.endpoint = conn.target.endpoint.replace("http", "ws") + "/ws"
+        self.endpoint = conn.target.endpoint + "/ws"
         self.connection = conn
         self.socket: Optional[aiohttp.ClientWebSocketResponse] = None
         self.poll_interval = poll_interval
@@ -32,7 +32,7 @@ class MessageRetriever:
         self.ws_task: Optional[asyncio.Task] = None
 
     async def ws(self):
-        LOGGER.debug("Starting websocket")
+        LOGGER.debug("Starting websocket to %s", self.endpoint)
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.ws_connect(self.endpoint) as socket:

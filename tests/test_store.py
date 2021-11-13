@@ -53,7 +53,7 @@ async def test_deserialization():
     assert isinstance(deserialized, Connection)
 
 
-@pytest.mark.parametrize("entity", [("agent"), ("mediator")])
+@pytest.mark.parametrize("entity", [Store.Name.agent, Store.Name.mediator])
 @pytest.mark.asyncio
 async def test_store_retrieve_connection(entity, store: Store, connection: Connection):
     """Parametrized test method for storing and retrieving
