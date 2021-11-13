@@ -25,7 +25,7 @@ async def test_serialization(connection):
     """Test serialization method from Connection object
     to json object"""
     conn = connection
-    store = AskarStore("repo_uri", "key")
+    store = AskarStore()
     serialized = store.serialize_json(conn)
     assert isinstance(serialized, str) and not isinstance(serialized, Connection)
 
@@ -34,7 +34,7 @@ async def test_serialization(connection):
 async def test_deserialization():
     """Test deserialization method from json object
     to Connection object"""
-    store = AskarStore("repo_uri", "key")
+    store = AskarStore()
     json_obj = json.dumps(
         {
             "state": "E2Vfkfn",

@@ -22,10 +22,10 @@ else:
 
 
 class AskarStore(BaseModel):
-    def __init__(self, repo_uri, key):
+    def __init__(self):
         """Configuration"""
-        self.repo_uri = repo_uri
-        self.key = key
+        self.repo_uri: str
+        self.key: str
 
     @classmethod
     def get(cls):
