@@ -32,6 +32,17 @@ python-versions = ">=3.6"
 frozenlist = ">=1.1.0"
 
 [[package]]
+name = "aries-askar"
+version = "0.2.2"
+description = ""
+category = "main"
+optional = false
+python-versions = ">=3.6.3"
+
+[package.dependencies]
+cached-property = ">=1.5,<2.0"
+
+[[package]]
 name = "aries-staticagent"
 version = "0.9.0rc4"
 description = "Aries Static Agent library for Python"
@@ -142,6 +153,14 @@ d = ["aiohttp (>=3.7.4)"]
 jupyter = ["ipython (>=7.8.0)", "tokenize-rt (>=3.2.0)"]
 python2 = ["typed-ast (>=1.4.3)"]
 uvloop = ["uvloop (>=0.15.2)"]
+
+[[package]]
+name = "cached-property"
+version = "1.5.2"
+description = "A decorator for caching properties in classes."
+category = "main"
+optional = false
+python-versions = "*"
 
 [[package]]
 name = "cffi"
@@ -664,7 +683,7 @@ testing = ["pytest (>=4.6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytes
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.7"
-content-hash = "97d9ebdf5edd0f9ebf411eed97cd1639bd34e46c3adf3daad0125666f5adfa51"
+content-hash = "b681a66696d09e8a268e0f0346f3ab1e59e64d5486fd7d908c7c6997ca1cdf25"
 
 [metadata.files]
 aiohttp = [
@@ -745,6 +764,11 @@ aiosignal = [
     {file = "aiosignal-1.2.0-py3-none-any.whl", hash = "sha256:26e62109036cd181df6e6ad646f91f0dcfd05fe16d0cb924138ff2ab75d64e3a"},
     {file = "aiosignal-1.2.0.tar.gz", hash = "sha256:78ed67db6c7b7ced4f98e495e572106d5c432a93e1ddd1bf475e1dc05f5b7df2"},
 ]
+aries-askar = [
+    {file = "aries_askar-0.2.2-py3-none-macosx_10_9_x86_64.whl", hash = "sha256:f8b3c929ad47d320f3c5a135060878b2d4d2bfeef149304fde53e88d71d6b6a4"},
+    {file = "aries_askar-0.2.2-py3-none-manylinux2014_x86_64.whl", hash = "sha256:4463eb019c1d9cbe66927b04160ef1f9fe41d33a368dcde9f53192ac7c5b86cb"},
+    {file = "aries_askar-0.2.2-py3-none-win_amd64.whl", hash = "sha256:fe910c59ed7fe5fa4334f9111d3b4ab3aa26f9bb408d7f439034fe899ba72c28"},
+]
 aries-staticagent = [
     {file = "aries-staticagent-0.9.0rc4.tar.gz", hash = "sha256:1fce69b498da401f4f5c1a96d5bda6a331f6b40d7dc7926474acd7d2571ad397"},
     {file = "aries_staticagent-0.9.0rc4-py3-none-any.whl", hash = "sha256:dc96bcab0ae06708d51d4544819aa1836586ee4e84517245fac4614e52fc251d"},
@@ -776,6 +800,10 @@ base58 = [
 black = [
     {file = "black-21.10b0-py3-none-any.whl", hash = "sha256:6eb7448da9143ee65b856a5f3676b7dda98ad9abe0f87fce8c59291f15e82a5b"},
     {file = "black-21.10b0.tar.gz", hash = "sha256:a9952229092e325fe5f3dae56d81f639b23f7131eb840781947e4b2886030f33"},
+]
+cached-property = [
+    {file = "cached-property-1.5.2.tar.gz", hash = "sha256:9fa5755838eecbb2d234c3aa390bd80fbd3ac6b6869109bfc1b499f7bd89a130"},
+    {file = "cached_property-1.5.2-py2.py3-none-any.whl", hash = "sha256:df4f613cf7ad9a588cc381aaf4a512d26265ecebd5eb9e1ba12f1319eb85a6a0"},
 ]
 cffi = [
     {file = "cffi-1.15.0-cp27-cp27m-macosx_10_9_x86_64.whl", hash = "sha256:c2502a1a03b6312837279c8c1bd3ebedf6c12c4228ddbad40912d671ccc8a962"},
