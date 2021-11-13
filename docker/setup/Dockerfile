@@ -4,16 +4,13 @@ RUN apk update && \
   apk add \
   build-base \
   curl \
-  git \
-  libffi-dev \
-  openssh-client \
-  postgresql-dev
+  libffi-dev
 
 ENV POETRY_HOME=/opt/poetry \
     VENV=/usr/src/app/.venv
 ENV PATH="$POETRY_HOME/bin:$VENV/bin:$PATH"
 
-RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python -
+RUN curl -sSL https://install.python-poetry.org | python -
 RUN poetry config virtualenvs.create true; poetry config virtualenvs.in-project true
 
 COPY ./pyproject.toml ./poetry.lock ./
