@@ -23,10 +23,8 @@ VAR: ContextVar["Connections"] = ContextVar("connections")
 class Connections(Module):
     """Module for Connection Protocol"""
 
-    doc_uri = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/"
-    protocol = "connections"
-    version = "1.0"
-    route = ModuleRouter()
+    protocol = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/connections/1.0"
+    route = ModuleRouter(protocol)
 
     @classmethod
     def get(cls) -> "Connections":
@@ -244,7 +242,7 @@ class Connections(Module):
         ConnectionMachine(conn).send_ping()
         await conn.send_async(ping, return_route="all")
 
-    @route("did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/trust_ping/1.0/ping")
+    @route(protocol="trust_ping", version="1.0", name="ping")
     async def ping(self, msg: Message, conn):
         """Process a trustping."""
         LOGGER.debug("Received trustping: %s", msg.pretty_print())
@@ -259,7 +257,7 @@ class Connections(Module):
         ConnectionMachine(conn).send_ping_response()
         await conn.send_async(response)
 
-    @route("did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/trust_ping/1.0/ping_response")
+    @route(protocol="trust_ping", version="1.0", name="ping_response")
     async def ping_response(self, msg: Message, conn):
         """Process a trustping."""
         LOGGER.debug("Received trustping response: %s", msg.pretty_print())

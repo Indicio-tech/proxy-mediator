@@ -1,14 +1,23 @@
-FROM python:3.7
+FROM python:3.7 AS base
+WORKDIR /app
 
-ADD https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64 ./jq
-RUN chmod +x ./jq
+# Install and Configure Poetry
+ENV POETRY_VERSION=1.1.11
+ENV POETRY_HOME=/opt/poetry
+RUN curl -sSL https://install.python-poetry.org | python -
+ENV PATH="/opt/poetry/bin:$PATH"
+RUN poetry config virtualenvs.in-project true
 
-RUN pip3 install --no-cache-dir poetry
+# Setup project
 RUN mkdir proxy_mediator; touch proxy_mediator/__init__.py
-COPY pyproject.toml .
-COPY poetry.lock .
-COPY README.md .
-
+COPY pyproject.toml poetry.lock README.md ./
 RUN poetry install --no-dev
+
+# Final Image
+FROM python:3.7
+WORKDIR /app
+COPY --from=base /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+
 COPY proxy_mediator/ proxy_mediator/
-ENTRYPOINT ["/bin/bash", "-c", "poetry run python -m proxy_mediator \"$@\"", "--"]
+ENTRYPOINT ["/bin/sh", "-c", "python -m proxy_mediator \"$@\"", "--"]

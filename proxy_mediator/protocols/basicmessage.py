@@ -3,10 +3,8 @@ from aries_staticagent.utils import timestamp
 
 
 class BasicMessage(Module):
-    doc_uri = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/"
-    protocol = "basicmessage"
-    version = "1.0"
-    route = ModuleRouter()
+    protocol = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/basicmessage/1.0"
+    route = ModuleRouter(protocol)
 
     @route
     async def message(self, msg, conn):
