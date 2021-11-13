@@ -11,7 +11,6 @@ from typing import Callable, Iterable, MutableMapping, Optional
 from aries_staticagent import Connection as AsaPyConn, crypto
 from aries_staticagent.connection import Target
 from aries_staticagent.dispatcher.handler_dispatcher import HandlerDispatcher
-from aries_staticagent.dispatcher.base import Dispatcher
 from aries_staticagent.message import MsgType
 from aries_staticagent.module import Module
 from statemachine import State, StateMachine
@@ -101,7 +100,7 @@ class Agent:
 
         # We want each connection created by this module to share the same routes
         # so this same dispatcher will be used for all created connections.
-        self.dispatcher = Dispatcher()
+        self.dispatcher = HandlerDispatcher()
 
     def _recipients_from_packed_message(self, packed_message: bytes) -> Iterable[str]:
         """
@@ -175,18 +174,14 @@ class Agent:
         """Register route decorator."""
 
         def register_route_dec(func):
-            self.dispatcher.add_handler(HandlerDispatcher(MsgType(msg_type), func))
+            self.dispatcher.add(MsgType(msg_type), func)
             return func
 
         return register_route_dec
 
     def route_module(self, module: Module):
         """Register a module for routing."""
-        handlers = [
-            HandlerDispatcher(msg_type, func)
-            for msg_type, func in module.routes.items()
-        ]
-        return self.dispatcher.add_handlers(handlers)
+        return self.dispatcher.extend(module.routes)
 
     async def handle_message(self, packed_message: bytes) -> Optional[bytes]:
         response = []
