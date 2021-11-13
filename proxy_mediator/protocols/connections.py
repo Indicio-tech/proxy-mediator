@@ -23,10 +23,8 @@ VAR: ContextVar["Connections"] = ContextVar("connections")
 class Connections(Module):
     """Module for Connection Protocol"""
 
-    doc_uri = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/"
-    protocol = "connections"
-    version = "1.0"
-    route = ModuleRouter()
+    protocol = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/connections/1.0"
+    route = ModuleRouter(protocol)
 
     @classmethod
     def get(cls) -> "Connections":

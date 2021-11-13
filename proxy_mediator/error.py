@@ -1,10 +1,10 @@
 """Errors and error related utilities."""
 
 
-from abc import ABC, abstractclassmethod
+from abc import ABC
 import functools
 import logging
-from typing import Callable, Optional, Tuple, Type, Union, cast
+from typing import Callable, ClassVar, Optional, Tuple, Type, Union, cast
 
 from aries_staticagent.message import BaseMessage, Message
 from inflection import dasherize, underscore
@@ -23,11 +23,7 @@ class ProtocolError(Exception):
 class Reportable(Exception, ABC):
     """Abstract Base Class for exceptions that can be sent as problem reports."""
 
-    @property
-    @classmethod
-    @abstractclassmethod
-    def code(cls) -> str:
-        """Problem report code for this exception."""
+    code: ClassVar[str]
 
 
 class ProblemReportDescription(BaseModel):

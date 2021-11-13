@@ -47,10 +47,8 @@ class Forward(BaseMessage):
 
 
 class Routing(Module):
-    doc_uri = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/"
-    protocol = "routing"
-    version = "1.0"
-    route = ModuleRouter()
+    protocol = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/routing/1.0"
+    route = ModuleRouter(protocol)
 
     @route
     async def forward(self, msg: Message, conn: Connection):

@@ -52,10 +52,8 @@ class MediationRequest:
 
 
 class CoordinateMediation(Module):
-    doc_uri = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/"
-    protocol = "coordinate-mediation"
-    version = "1.0"
-    route = ModuleRouter()
+    protocol = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/coordinate-mediation/1.0"
+    route = ModuleRouter(protocol)
 
     def __init__(self):
         super().__init__()
