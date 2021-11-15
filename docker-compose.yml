@@ -4,15 +4,24 @@ services:
     build:
       context: .
       dockerfile: ./docker/Dockerfile
+    volumes:
+      - store:/app/store
     environment:
       PORT: 3000
       ENDPOINT: http://proxy:3000
-      # Set mediator invite through .env file or modify this value
-      MEDIATOR_INVITE: ${MEDIATOR_INVITE}
+      ENABLE_STORE: "true"
+      REPO_URI: "sqlite:///app/store/db"
+      REPO_KEY: insecure
       LOG_LEVEL: DEBUG
+      WAIT_BEFORE_HOSTS: 3
+      WAIT_HOSTS: reverse-proxy:80, mediator:3000
+      WAIT_HOSTS_TIMEOUT: 30
+      WAIT_SLEEP_INTERVAL: 1
+      WAIT_HOST_CONNECT_TIMEOUT: 10
 
   agent:
-    image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
+    #image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
+    image: dbluhm/acapy:fix-default-mediator
     command: >
       start --label agent -it http 0.0.0.0 3000 -ot http -e http://agent:3000
       --no-ledger --admin 0.0.0.0 3001 --admin-insecure-mode
@@ -66,3 +75,6 @@ services:
     depends_on:
       - proxy
       - agent
+
+volumes:
+  store:

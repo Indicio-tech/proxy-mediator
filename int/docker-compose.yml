@@ -8,6 +8,9 @@ services:
     environment:
       PORT: 3000
       ENDPOINT: http://proxy:3000
+      ENABLE_STORE: "true"
+      REPO_URI: "sqlite://:memeory:"
+      REPO_KEY: integration-testing
       LOG_LEVEL: DEBUG
 
   agent_alice:

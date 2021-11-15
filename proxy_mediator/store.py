@@ -1,8 +1,9 @@
 from contextvars import ContextVar
+from enum import Enum
 import json
 from typing import Optional
 
-from aries_askar import Store as AskarStore
+from aries_askar import Store as AskarStore, AskarError, AskarErrorCode
 from aries_staticagent import crypto
 
 from proxy_mediator.agent import Connection
@@ -12,6 +13,14 @@ VAR: ContextVar["Store"] = ContextVar("Store")
 
 
 class Store:
+    """Helper for working with Askar store."""
+
+    class Name(Enum):
+        """Types of entities stored."""
+
+        agent = "agent"
+        mediator = "mediator"
+
     def __init__(self, repo_uri: str, key: str):
         """Initialize store with repo_uri and key for wallet.
 
@@ -87,27 +96,46 @@ class Store:
         conn.invitation_key = info["invitation_key"]
         return conn
 
-    async def store_connection(self, connection: Connection, entity: str):
+    async def store_connection(self, connection: Connection, name: Name):
         """Insert agent connection into store"""
         if not self.store:
             raise ValueError("Store must be opened")
 
         value = Store.serialize_json(connection).encode()
-        async with self.store as session:
-            await session.insert(
-                "connection",
-                entity,
-                value,
-            )
+        async with self.store.transaction() as txn:
+            try:
+                await txn.insert(
+                    "connection",
+                    name.value,
+                    value,
+                )
+            except AskarError as err:
+                if err.code == AskarErrorCode.DUPLICATE:
+                    await txn.replace("connection", name.value, value)
+                else:
+                    raise
+            await txn.commit()
 
-    async def retrieve_connection(self, entity: str):
+    async def retrieve_connection(self, name: Name):
         """Retrieve mediation connection from store"""
         if not self.store:
             raise ValueError("Store must be opened")
 
         async with self.store as session:
-            entry = await session.fetch("connection", entity)
+            entry = await session.fetch("connection", name.value)
 
         if entry:
             return Store.deserialize_json(entry.value)
         return None
+
+    async def store_agent(self, connection: Connection):
+        return await self.store_connection(connection, self.Name.agent)
+
+    async def store_mediator(self, connection: Connection):
+        return await self.store_connection(connection, self.Name.mediator)
+
+    async def retrieve_agent(self):
+        return await self.retrieve_connection(self.Name.agent)
+
+    async def retrieve_mediator(self):
+        return await self.retrieve_connection(self.Name.mediator)
