@@ -47,6 +47,27 @@ async def test_deserialization():
             "sigkey": "5HEn361K7SbL5iZGQpAhkrwTTxUDZ6mSS4WvSKmbRttqSDFtFuiEXHz3PJ2x",
             "recipients": ["FdPjv5vuxjChhWPKEDLV3tgGQjt57cBtX5GCcvGvuRw8"],
             "endpoint": "http://example.com",
+            "diddoc": {
+                "@context": "https://w3id.org/did/v1",
+                "id": "123456789",
+                "publicKey": [
+                    {
+                        "id": "123456789" + "#keys-1",
+                        "type": "Ed25519VerificationKey2018",
+                        "controller": "123456789",
+                        "publicKeyBase58": "123456789",
+                    }
+                ],
+                "service": [
+                    {
+                        "id": "123456789" + "#indy",
+                        "type": "IndyAgent",
+                        "recipientKeys": ["123456789"],
+                        "routingKeys": [],
+                        "serviceEndpoint": "ws://agents-r-us.org/ws",
+                    }
+                ],
+            },
         }
     )
     deserialized = Store.deserialize_json(json_obj)
