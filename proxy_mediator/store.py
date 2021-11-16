@@ -79,6 +79,7 @@ class Store:
                 if conn.target.recipients
                 else [],
                 "endpoint": conn.target.endpoint,
+                "diddoc": conn.diddoc,
             }
         )
 
@@ -94,6 +95,7 @@ class Store:
         conn.state = info["state"]
         conn.multiuse = info["multiuse"]
         conn.invitation_key = info["invitation_key"]
+        conn.diddoc = info["diddoc"]
         return conn
 
     async def store_connection(self, connection: Connection, name: Name):

@@ -161,6 +161,7 @@ class Connections(Module):
                 recipients=msg["connection"]["DIDDoc"]["service"][0]["recipientKeys"],
             ),
         )
+        connection.diddoc = msg["connection"]["DIDDoc"]
 
         # Prepare response
         connection_block = {
@@ -230,6 +231,7 @@ class Connections(Module):
             recipients=connection_block["DIDDoc"]["service"][0]["recipientKeys"],
             endpoint=connection_block["DIDDoc"]["service"][0]["serviceEndpoint"],
         )
+        conn.diddoc = connection_block["DIDDoc"]
         conn.complete()
 
         ping = Message.parse_obj(

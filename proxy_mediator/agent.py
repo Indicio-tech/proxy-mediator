@@ -33,6 +33,7 @@ class Connection(AsaPyConn):
         self._completed: Future = asyncio.get_event_loop().create_future()
         self.multiuse: bool = False
         self.invitation_key: Optional[str] = None
+        self.diddoc: Optional[dict] = None
 
     @property
     def is_completed(self):
