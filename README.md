@@ -1,3 +1,46 @@
+# Quickstart
+
+## To create and activate a virtual environment, run within the root directory:
+  - `python3 -m venv env`
+  - `source env/bin/activate`
+
+## To run the demo setup:
+  - `docker-compose up --build; docker-compose down`
+
+## Services started by the above command:
+- **Proxy**: The mediator inside the firewall which connects to the external mediator.
+- **Agent**: The agent that is sending and receiving messages through the mediators.
+- **Mediator-tunnel**: A tunnel through which the external mediator transfers information.
+- **Reverse-proxy**: A service that redirects traffic from one endpoint to another.
+- **Mediator**: The external mediator that connects to the internal mediator from outside of the firewall.
+- **Setup**: Builds the context and sets the environment variables.
+
+  - The MessageRetriever retrieves messages by opening a websocket connection and continuously polling for messages using a trust ping with response_requested set to false while the websocket connection is open.
+
+
+# Setup
+
+Steps to set up and connection the mediators:
+1. Retrieve invitation from mediator
+    - Use the acapy_client to create an invitation request for the external mediator and returns the invitation url
+2. Receive invitation in proxy
+    - Using AsyncClient, make an HTTP post request to allow the proxy mediator to receive the invitation from the external mediator. The proxy mediator and external mediator are now connected.
+3. Retrieve invitation from proxy (get_proxy_invite)
+    - Using AsyncClient, make an HTTP get request to retrieve the invitation from the proxy mediator
+4. Receive proxy invitation on the agent
+    - Proxy and agent are now connected.
+5. Request mediation from proxy
+    - The agent requests mediation from the proxy mediator. Proxy has now granted mediation to agent.
+6. Set proxy as default mediator
+    - Proxy mediator is now the default mediator for the agent.
+
+This setup is implemented in `docker/setup/main.py` and `int/tests/conftest.py`. These steps can be used directly or in your own setup.
+
+
+The proxy mediator uses an Aries Askar store for secure connection persistence.
+
+
+
 # Introduction
 
 This project is a service deployed "at the edge" that polls for messages from a
