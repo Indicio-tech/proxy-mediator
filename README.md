@@ -22,20 +22,19 @@
 
 Steps to set up and connection the mediators:
 1. Retrieve invitation from mediator
-    - Use the acapy_client to create an invitation request for the external mediator and returns the invitation url
+    - Use the `acapy_client` to create an invitation request for the external mediator and return the invitation URL.
 2. Receive invitation in proxy
-    - Using AsyncClient, make an HTTP post request to allow the proxy mediator to receive the invitation from the external mediator. The proxy mediator and external mediator are now connected.
-3. Retrieve invitation from proxy (get_proxy_invite)
-    - Using AsyncClient, make an HTTP get request to retrieve the invitation from the proxy mediator
+    - Using AsyncClient, make an HTTP post request to allow the proxy mediator to receive the invitation from the external mediator. The proxy mediator and external mediator will now be connected.
+3. Retrieve invitation from proxy
+    - Using AsyncClient, make an HTTP get request to retrieve the invitation from the proxy mediator.
 4. Receive proxy invitation on the agent
-    - Proxy and agent are now connected.
+    - Proxy and agent will now be connected.
 5. Request mediation from proxy
     - The agent requests mediation from the proxy mediator. Proxy has now granted mediation to agent.
 6. Set proxy as default mediator
-    - Proxy mediator is now the default mediator for the agent.
+    - Proxy mediator will now be the default mediator for the agent.
 
 This setup is implemented in `docker/setup/main.py` and `int/tests/conftest.py`. These steps can be used directly or in your own setup.
-
 
 The proxy mediator uses an Aries Askar store for secure connection persistence.
 
