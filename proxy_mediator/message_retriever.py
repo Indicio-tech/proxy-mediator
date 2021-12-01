@@ -13,6 +13,27 @@ from .agent import Connection
 LOGGER = logging.getLogger(__name__)
 
 
+def _determine_ws_endpoint(doc: dict) -> Optional[str]:
+    """
+    Determine which endpoint from a DID Document should be used as the WS endpoint.
+
+    If no suitable endpoint is found, return None.
+    """
+
+    if not doc["service"]:
+        return None
+
+    for service in doc["service"]:
+        # Endpoint will look like:
+        #     http://agents-r-us.org
+        #     ws://agents-r-us.org/ws
+        #     wss://agents-r-us.org/ws
+        # Or similar
+        endpoint: str = service["serviceEndpoint"]
+        if endpoint.startswith("ws"):
+            return endpoint
+
+
 class MessageRetriever:
     """
     Retrieve messages via websocket from a given connection.
@@ -22,9 +43,14 @@ class MessageRetriever:
     """
 
     def __init__(self, conn: Connection, poll_interval: float = 5.0):
-        if not conn.target or not conn.target.endpoint:
-            raise ValueError("Connection must have endpoint for WS polling")
-        self.endpoint = conn.target.endpoint + "/ws"
+        if not conn.diddoc:
+            raise ValueError("Connection must have DID Doc for WS polling")
+
+        endpoint = _determine_ws_endpoint(conn.diddoc)
+        if not endpoint:
+            raise ValueError("Connection must have a WS endpoint, none found")
+
+        self.endpoint = endpoint
         self.connection = conn
         self.socket: Optional[aiohttp.ClientWebSocketResponse] = None
         self.poll_interval = poll_interval
