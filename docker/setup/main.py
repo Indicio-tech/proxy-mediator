@@ -129,7 +129,12 @@ async def agent_set_default_mediator(agent: Client, mediation_id: str):
 async def main():
     agent = Client(base_url=AGENT)
     mediator = Client(base_url=MEDIATOR)
-    mediator_invite = await get_mediator_invite(mediator)
+
+    if getenv("MEDIATOR_INVITE"):
+        mediator_invite = getenv("MEDIATOR_INVITE")
+    else:
+        mediator_invite = await get_mediator_invite(mediator)
+
     await proxy_receive_mediator_invite(mediator, mediator_invite)
     invite = await get_proxy_invite()
     conn_record = await agent_receive_invitation(agent, invite)
