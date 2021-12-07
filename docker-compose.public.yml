@@ -1,0 +1,44 @@
+version: '3'
+services:
+  proxy:
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+    volumes:
+      - store:/app/store
+    environment:
+      PORT: 3000
+      ENDPOINT: http://proxy:3000
+      ENABLE_STORE: "true"
+      REPO_URI: "sqlite:///app/store/db"
+      REPO_KEY: insecure
+      LOG_LEVEL: DEBUG
+
+  agent:
+    image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.2
+    command: >
+      start --label agent -it http 0.0.0.0 3000 -ot http -e http://agent:3000
+      --no-ledger --admin 0.0.0.0 3001 --admin-insecure-mode
+      --debug-connections --auto-accept-invites --auto-accept-requests
+      --auto-ping-connection --log-level debug
+    ports:
+      - 4001:3001
+
+  setup:
+    build:
+      context: ./docker/setup
+    environment:
+      - WAIT_BEFORE_HOSTS=3
+      - WAIT_HOSTS=proxy:3000,agent:3000
+      - WAIT_HOSTS_TIMEOUT=30
+      - WAIT_SLEEP_INTERVAL=1
+      - WAIT_HOST_CONNECT_TIMEOUT=10
+      - PROXY=http://proxy:3000
+      - AGENT=http://agent:3001
+      - MEDIATOR_INVITE=http://mediator3.test.indiciotech.io:3000?c_i=eyJAdHlwZSI6ICJkaWQ6c292OkJ6Q2JzTlloTXJqSGlxWkRUVUFTSGc7c3BlYy9jb25uZWN0aW9ucy8xLjAvaW52aXRhdGlvbiIsICJAaWQiOiAiYjE5YTM2ZjctZjhiZi00Mjg2LTg4ZjktODM4ZTIyZDI0ZjQxIiwgInJlY2lwaWVudEtleXMiOiBbIkU5VlhKY1pzaGlYcXFMRXd6R3RtUEpCUnBtMjl4dmJMYVpuWktTU0ZOdkE2Il0sICJzZXJ2aWNlRW5kcG9pbnQiOiAiaHR0cDovL21lZGlhdG9yMy50ZXN0LmluZGljaW90ZWNoLmlvOjMwMDAiLCAibGFiZWwiOiAiSW5kaWNpbyBQdWJsaWMgTWVkaWF0b3IifQ==
+    depends_on:
+      - proxy
+      - agent
+
+volumes:
+  store:

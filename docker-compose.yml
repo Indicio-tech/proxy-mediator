@@ -5,6 +5,7 @@ services:
       context: .
       dockerfile: ./docker/Dockerfile
     volumes:
+      - ./docker/wait:/app/wait:z
       - store:/app/store
     environment:
       PORT: 3000
@@ -18,6 +19,7 @@ services:
       WAIT_HOSTS_TIMEOUT: 30
       WAIT_SLEEP_INTERVAL: 1
       WAIT_HOST_CONNECT_TIMEOUT: 10
+    entrypoint: /bin/sh -c '/app/wait && python -m proxy_mediator "$$@"' --
 
   agent:
     #image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1

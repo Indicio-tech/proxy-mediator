@@ -44,6 +44,13 @@ def config():
     )
     parser.add_argument("--endpoint", env_var="ENDPOINT", type=str, required=True)
     parser.add_argument("--log-level", env_var="LOG_LEVEL", type=str, default="WARNING")
+    parser.add_argument(
+        "--poll-interval",
+        env_var="POLL_INTERVAL",
+        type=float,
+        required=False,
+        default=20.0,
+    )
     args = parser.parse_args()
 
     # Configure logs
@@ -178,7 +185,9 @@ async def main():
         if not connections.mediator_connection:
             raise RuntimeError("Mediator connection should be set")
 
-        retriever = MessageRetriever(connections.mediator_connection)
+        retriever = MessageRetriever(
+            connections.mediator_connection, args.poll_interval
+        )
         try:
             await retriever.start()
         finally:
