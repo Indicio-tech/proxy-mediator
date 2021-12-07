@@ -89,6 +89,7 @@ class MessageRetriever:
         }
         while True:
             if self.socket:
+                LOGGER.debug("Polling mediator")
                 prepared_message = self.connection.pack(ping)
                 await self.socket.send_bytes(prepared_message)
             else:
