@@ -77,7 +77,9 @@ async def get_proxy_invite() -> dict:
 
 async def agent_receive_invitation(agent: Client, invite: dict) -> ConnRecord:
     conn_record = await receive_invitation.asyncio(
-        client=agent, json_body=ReceiveInvitationRequest.from_dict(invite)
+        client=agent,
+        json_body=ReceiveInvitationRequest.from_dict(invite),
+        auto_accept="true",
     )
 
     conn_states_order = {"invitation": 0, "request": 1, "response": 2, "active": 3}
