@@ -80,7 +80,7 @@ async def agent_receive_invitation(agent: Client, invite: dict) -> ConnRecord:
         client=agent, json_body=ReceiveInvitationRequest.from_dict(invite)
     )
 
-    conn_states_order = {"invite": 0, "request": 1, "response": 2, "active": 3}
+    conn_states_order = {"invitation": 0, "request": 1, "response": 2, "active": 3}
 
     async def _connection_state(conn_record: ConnRecord, state: str):
         count = 0
