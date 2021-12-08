@@ -58,12 +58,19 @@ async def proxy_receive_mediator_invite(invite: str):
 async def get_proxy_invite() -> dict:
     async with AsyncClient() as client:
         url = None
-        while url is None:
+        count = 0
+        while url is None and count < 10:
+            count += 1
             r = await client.get(f"{PROXY}/retrieve_agent_invitation")
             url = r.json().get("invitation_url")
             if not url:
-                await asyncio.sleep(1)
-        return json.loads(urlsafe_b64decode(url.split("c_i=")[1]))
+                await asyncio.sleep(3)
+        if url:
+            return json.loads(urlsafe_b64decode(url.split("c_i=")[1]))
+        raise RuntimeError(
+            "Failed to retrieve invitation from proxy. "
+            "Did the proxy successfully connect to mediator?"
+        )
 
 
 async def agent_receive_invitation(agent: Client, invite: dict) -> ConnRecord:
