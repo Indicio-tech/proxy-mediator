@@ -51,6 +51,7 @@ class Routing(Module):
     route = ModuleRouter(protocol)
 
     @route
+    @route(doc_uri="https://didcomm.org/")
     async def forward(self, msg: Message, conn: Connection):
         """Handle forward message."""
         fwd = Forward.parse_obj(msg.dict(by_alias=True))
