@@ -1,7 +1,8 @@
 """Connections Protocol Starter Kit"""
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 import logging
+import signal
 
 from aiohttp import web
 from configargparse import ArgumentParser, YAMLConfigFileParser
@@ -208,4 +209,14 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    loop = asyncio.get_event_loop()
+    main_task = asyncio.ensure_future(main())
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, main_task.cancel)
+
+    try:
+        with suppress(asyncio.CancelledError):
+            loop.run_until_complete(main_task)
+    finally:
+        loop.close()
