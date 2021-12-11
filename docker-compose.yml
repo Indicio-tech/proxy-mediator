@@ -24,11 +24,14 @@ services:
   agent:
     #image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
     image: dbluhm/acapy:fix-default-mediator
+    volumes:
+      - indy:/home/indy/.indy_client
     command: >
       start --label agent -it http 0.0.0.0 3000 -ot http -e http://agent:3000
       --no-ledger --admin 0.0.0.0 3001 --admin-insecure-mode
       --debug-connections --auto-accept-invites --auto-accept-requests
       --auto-ping-connection --log-level debug
+      --wallet-type indy --wallet-name agent --wallet-key insecure --auto-provision
     ports:
       - 4001:3001
 
@@ -46,11 +49,14 @@ services:
       WS_PORT: 3002
     ports:
       - 8080:80
+    depends_on:
+      - mediator
 
   mediator:
     image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
     volumes:
       - ./docker/acapy-endpoint.sh:/home/indy/acapy-endpoint.sh:z
+      - indy:/home/indy/.indy_client
     ports:
       - 4002:3001
     environment:
@@ -61,6 +67,7 @@ services:
       --no-ledger --admin 0.0.0.0 3001 --admin-insecure-mode
       --debug-connections --auto-accept-invites --auto-accept-requests
       --auto-ping-connection --log-level debug --open-mediation
+      --wallet-type indy --wallet-name mediator --wallet-key insecure --auto-provision
 
   setup:
     build:
@@ -80,3 +87,4 @@ services:
 
 volumes:
   store:
+  indy:
