@@ -20,4 +20,4 @@ COPY --from=base /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
 
 COPY proxy_mediator/ proxy_mediator/
-ENTRYPOINT ["/bin/sh", "-c", "python -m proxy_mediator \"$@\"", "--"]
+ENTRYPOINT ["python", "-m", "proxy_mediator"]
