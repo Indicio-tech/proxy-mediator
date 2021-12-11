@@ -125,3 +125,4 @@ class MessageRetriever:
         if exc:
             LOGGER.exception("Error occurred in MessageRetriever")
         await self.stop()
+        return False

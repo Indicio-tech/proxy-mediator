@@ -135,6 +135,7 @@ async def main():
     if args.enable_store:
         store = Store(args.repo_uri, args.repo_key)
         Store.set(store)
+        LOGGER.debug("Recalling connections")
         async with store:
             connections.mediator_connection = await store.retrieve_mediator()
             connections.agent_connection = await store.retrieve_agent()
@@ -143,6 +144,7 @@ async def main():
         if connections.mediator_connection:
             LOGGER.debug("Mediator connection loaded from store")
         else:
+            agent.state = "setup"
             # Connect to mediator by processing passed in invite
             # All these operations must take place without an endpoint
             if not args.mediator_invite:
@@ -171,6 +173,7 @@ async def main():
         if connections.agent_connection:
             LOGGER.debug("Agent connection loaded from store")
         else:
+            agent.state = "setup"
             # Connect to agent by creating invite and awaiting connection completion
             agent_connection, invite = connections.create_invitation()
             connections.agent_invitation = invite
@@ -189,16 +192,19 @@ async def main():
             connections.mediator_connection, args.poll_interval
         )
         try:
+            agent.state = "ready"
             await retriever.start()
         finally:
+            LOGGER.debug("Stopping retriever")
             await retriever.stop()
 
-    # Store connections
-    store = Store.get()
-    if store:
-        async with store:
-            await store.store_agent(connections.agent_connection)
-            await store.store_mediator(connections.mediator_connection)
+            # Store connections
+            store = Store.get()
+            if store:
+                LOGGER.debug("Saving connections")
+                async with store:
+                    await store.store_agent(connections.agent_connection)
+                    await store.store_mediator(connections.mediator_connection)
 
 
 if __name__ == "__main__":

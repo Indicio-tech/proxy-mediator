@@ -61,6 +61,7 @@ class Store:
 
     async def __aexit__(self, type, value, tb):
         await self.close()
+        return False
 
     @staticmethod
     def serialize_json(conn):

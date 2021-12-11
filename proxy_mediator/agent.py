@@ -4,15 +4,15 @@ Proxy Mediator Agent.
 import asyncio
 from asyncio.futures import Future
 from contextvars import ContextVar
-import json
 import logging
 from typing import Callable, Iterable, MutableMapping, Optional
 
-from aries_staticagent import Connection as AsaPyConn, crypto
+from aries_staticagent import Connection as AsaPyConn
 from aries_staticagent.connection import Target
 from aries_staticagent.dispatcher.handler_dispatcher import HandlerDispatcher
 from aries_staticagent.message import MsgType
 from aries_staticagent.module import Module
+from aries_staticagent.crypto import recipients_from_packed_message
 from statemachine import State, StateMachine
 
 
@@ -102,28 +102,10 @@ class Agent:
         # We want each connection created by this module to share the same routes
         # so this same dispatcher will be used for all created connections.
         self.dispatcher = HandlerDispatcher()
-
-    def _recipients_from_packed_message(self, packed_message: bytes) -> Iterable[str]:
-        """
-        Inspect the header of the packed message and extract the recipient key.
-        """
-        try:
-            wrapper = json.loads(packed_message)
-        except Exception as err:
-            raise ValueError("Invalid packed message") from err
-
-        recips_json = crypto.b64_to_bytes(wrapper["protected"], urlsafe=True).decode(
-            "ascii"
-        )
-        try:
-            recips_outer = json.loads(recips_json)
-        except Exception as err:
-            raise ValueError("Invalid packed message recipients") from err
-
-        return [recip["header"]["kid"] for recip in recips_outer["recipients"]]
+        self.state: str = "init"
 
     def connections_for_message(self, packed_message: bytes) -> Iterable[Connection]:
-        recipients = self._recipients_from_packed_message(packed_message)
+        recipients = recipients_from_packed_message(packed_message)
         connections = [
             self.connections[recip] for recip in recipients if recip in self.connections
         ]
