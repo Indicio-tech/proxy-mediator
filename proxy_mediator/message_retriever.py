@@ -66,12 +66,16 @@ class MessageRetriever:
                     async for msg in socket:
                         LOGGER.debug("Received ws message: %s", msg)
                         if msg.type == aiohttp.WSMsgType.BINARY:
-                            unpacked = self.connection.unpack(msg.data)
-                            LOGGER.debug(
-                                "Unpacked message from websocket: %s",
-                                unpacked.pretty_print(),
-                            )
-                            await self.connection.dispatch(unpacked)
+                            try:
+                                unpacked = self.connection.unpack(msg.data)
+                                LOGGER.debug(
+                                    "Unpacked message from websocket: %s",
+                                    unpacked.pretty_print(),
+                                )
+                                await self.connection.dispatch(unpacked)
+                            except Exception:
+                                LOGGER.exception("Failed to handle message")
+
                         elif msg.type == aiohttp.WSMsgType.ERROR:
                             LOGGER.error(
                                 "ws connection closed with exception %s",
