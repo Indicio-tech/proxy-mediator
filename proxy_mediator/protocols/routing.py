@@ -10,6 +10,7 @@ from pydantic.class_validators import validator
 from ..agent import Connection
 from ..error import Reportable
 from .connections import Connections
+from .constants import DIDCOMM, DIDCOMM_OLD
 
 
 LOGGER = logging.getLogger(__name__)
@@ -42,7 +43,7 @@ class ForwardFromUnauthorizedConnection(ForwardError):
 
 
 class Forward(BaseMessage):
-    msg_type = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/routing/1.0/forward"
+    msg_type = f"{DIDCOMM_OLD}routing/1.0/forward"
     to: str
     msg: Dict[str, Any]
 
@@ -56,11 +57,11 @@ class Forward(BaseMessage):
 
 
 class Routing(Module):
-    protocol = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/routing/1.0"
+    protocol = f"{DIDCOMM_OLD}routing/1.0"
     route = ModuleRouter(protocol)
 
     @route
-    @route(doc_uri="https://didcomm.org/")
+    @route(doc_uri=DIDCOMM)
     async def forward(self, msg: Message, conn: Connection):
         """Handle forward message."""
         fwd = Forward.parse_obj(msg.dict(by_alias=True))

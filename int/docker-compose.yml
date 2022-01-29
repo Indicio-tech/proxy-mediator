@@ -57,6 +57,8 @@ services:
       WS_PORT: 3002
     ports:
       - 8080:80
+    depends_on:
+      - external_mediator
 
 
   tests:

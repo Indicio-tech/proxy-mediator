@@ -9,11 +9,13 @@ import json
 import logging
 from typing import Dict, Optional
 
-from ..agent import Connection, Agent, ConnectionMachine
 from aries_staticagent import Message, crypto
 from aries_staticagent.connection import Target
 from aries_staticagent.module import Module, ModuleRouter
+
+from ..agent import Agent, Connection, ConnectionMachine
 from ..error import ProtocolError
+from .constants import DIDCOMM, DIDCOMM_OLD
 
 
 LOGGER = logging.getLogger(__name__)
@@ -23,7 +25,7 @@ VAR: ContextVar["Connections"] = ContextVar("connections")
 class Connections(Module):
     """Module for Connection Protocol"""
 
-    protocol = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/connections/1.0"
+    protocol = f"{DIDCOMM_OLD}connections/1.0"
     route = ModuleRouter(protocol)
 
     @classmethod
@@ -137,6 +139,7 @@ class Connections(Module):
         return new_connection
 
     @route
+    @route(doc_uri=DIDCOMM)
     async def request(self, msg: Message, invite_connection):
         """Process a request.
 
@@ -210,6 +213,7 @@ class Connections(Module):
         connection.complete()
 
     @route
+    @route(doc_uri=DIDCOMM)
     async def response(self, msg: Message, conn: Connection):
         """Process a response."""
         LOGGER.debug("Received response: %s", msg.pretty_print())
@@ -245,6 +249,7 @@ class Connections(Module):
         await conn.send_async(ping, return_route="all")
 
     @route(protocol="trust_ping", version="1.0", name="ping")
+    @route(doc_uri=DIDCOMM, protocol="trust_ping", version="1.0", name="ping")
     async def ping(self, msg: Message, conn):
         """Process a trustping."""
         LOGGER.debug("Received trustping: %s", msg.pretty_print())
@@ -260,6 +265,7 @@ class Connections(Module):
         await conn.send_async(response)
 
     @route(protocol="trust_ping", version="1.0", name="ping_response")
+    @route(doc_uri=DIDCOMM, protocol="trust_ping", version="1.0", name="ping_response")
     async def ping_response(self, msg: Message, conn):
         """Process a trustping."""
         LOGGER.debug("Received trustping response: %s", msg.pretty_print())
