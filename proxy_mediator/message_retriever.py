@@ -7,7 +7,7 @@ from typing import Optional
 
 import aiohttp
 
-from .agent import Connection
+from .connection import Connection
 
 
 LOGGER = logging.getLogger(__name__)

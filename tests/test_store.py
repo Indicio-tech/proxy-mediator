@@ -29,7 +29,7 @@ def store(tmpdir_factory):
 async def test_serialization(connection):
     """Test serialization method from Connection object
     to json object"""
-    serialized = Store.serialize_json(connection)
+    serialized = Connection.to_store(connection)
     assert isinstance(serialized, str)
 
 
@@ -70,20 +70,22 @@ async def test_deserialization():
             },
         }
     )
-    deserialized = Store.deserialize_json(json_obj)
+    deserialized = Connection.from_store(json_obj)
     assert isinstance(deserialized, Connection)
 
 
-@pytest.mark.parametrize("entity", [Store.Name.agent, Store.Name.mediator])
 @pytest.mark.asyncio
-async def test_store_retrieve_connection(entity, store: Store, connection: Connection):
+async def test_store_retrieve_connection(store: Store, connection: Connection):
     """Parametrized test method for storing and retrieving
     agent and mediator connections"""
     async with store:
-        await store.store_connection(connection, entity)
+        async with store.session() as session:
+            await store.store_connection(session, connection)
 
     async with store:
-        retrieved_conn = await store.retrieve_connection(entity)
+        async with store.session() as session:
+            entry, *_ = await store.retrieve_connections(session)
+            retrieved_conn = Connection.from_store(entry.value)
 
     assert retrieved_conn
     assert connection.state == retrieved_conn.state

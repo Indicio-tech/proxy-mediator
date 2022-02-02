@@ -2,18 +2,18 @@
     https://github.com/hyperledger/aries-rfcs/blob/main/features/0160-connection-protocol
 """
 
-import asyncio
 from base64 import urlsafe_b64decode
 from contextvars import ContextVar
 import json
 import logging
-from typing import Dict, Optional
+from typing import MutableMapping
 
 from aries_staticagent import Message, crypto
 from aries_staticagent.connection import Target
+from aries_staticagent.dispatcher.base import Dispatcher
 from aries_staticagent.module import Module, ModuleRouter
 
-from ..agent import Agent, Connection, ConnectionMachine
+from ..connection import Connection, ConnectionMachine
 from ..error import ProtocolError
 from .constants import DIDCOMM, DIDCOMM_OLD
 
@@ -36,20 +36,41 @@ class Connections(Module):
     def set(cls, value: "Connections"):
         VAR.set(value)
 
-    def __init__(self, endpoint=None, connections=None):
+    def __init__(
+        self,
+        dispatcher: Dispatcher,
+        connections: MutableMapping[str, Connection] = None,
+        endpoint=None,
+    ):
         super().__init__()
+        self.dispatcher = dispatcher
+        self.connections = connections if connections is not None else {}
         self.endpoint = endpoint
-        self.connections: Dict[str, Connection] = connections if connections else {}
 
-        self.mediator_connection: Optional[Connection] = None
-        self._mediator_connection_event = asyncio.Event()
-        self.agent_connection: Optional[Connection] = None
-        self.agent_invitation: Optional[str] = None
+    def new_connection(
+        self,
+        *,
+        multiuse: bool = False,
+        invitation_key: str = None,
+        invite_connection: Connection = None,
+        target: Target = None,
+    ):
+        """Return new connection and store in connections."""
+        if invite_connection:
+            conn = Connection.from_invite(
+                invite_connection, dispatcher=self.dispatcher, target=target
+            )
+        else:
+            conn = Connection.random(target=target, dispatcher=self.dispatcher)
+
+        conn.multiuse = multiuse
+        conn.invitation_key = conn.invitation_key or invitation_key
+        self.connections[conn.verkey_b58] = conn
+        return conn
 
     def create_invitation(self, *, multiuse: bool = False):
         """Create and return an invite."""
-        agent = Agent.get()
-        connection = agent.new_connection(multiuse=multiuse)
+        connection = self.new_connection(multiuse=multiuse)
         ConnectionMachine(connection).send_invite()
         invitation = Message.parse_obj(
             {
@@ -66,19 +87,6 @@ class Connections(Module):
         LOGGER.debug("Created invitation: %s", invitation_url)
         return connection, invitation_url
 
-    async def mediator_invite_received(self) -> Connection:
-        """Await event notifying that mediator invite has been received."""
-        await self._mediator_connection_event.wait()
-        if not self.mediator_connection:
-            raise RuntimeError("Mediator connection event triggered without set")
-        return self.mediator_connection
-
-    async def receive_mediator_invite(self, invite: str) -> Connection:
-        """Receive mediator invitation."""
-        self.mediator_connection = await self.receive_invite_url(invite, endpoint="")
-        self._mediator_connection_event.set()
-        return self.mediator_connection
-
     async def receive_invite_url(self, invite: str, **kwargs):
         """Process an invitation from a URL."""
         invite_msg = Message.parse_obj(
@@ -88,10 +96,9 @@ class Connections(Module):
 
     async def receive_invite(self, invite: Message, *, endpoint: str = None):
         """Process an invitation."""
-        agent = Agent.get()
         LOGGER.debug("Received invitation: %s", invite.pretty_print())
         invitation_key = invite["recipientKeys"][0]
-        new_connection = agent.new_connection(
+        new_connection = self.new_connection(
             invitation_key=invitation_key,
             target=Target(
                 their_vk=invite["recipientKeys"][0],
@@ -140,24 +147,23 @@ class Connections(Module):
 
     @route
     @route(doc_uri=DIDCOMM)
-    async def request(self, msg: Message, invite_connection):
+    async def request(self, msg: Message, invite_connection: Connection):
         """Process a request.
 
         For this handler, conn represents an ephemeral connection created for
         the invitation.
         """
-        agent = Agent.get()
         LOGGER.debug("Received request: %s", msg.pretty_print())
         assert msg.mtc.recipient
 
         # Pop invite connection
         if not invite_connection.multiuse:
-            agent.delete_connection(invite_connection)
+            self.connections.pop(invite_connection.verkey_b58)
 
         ConnectionMachine(invite_connection).receive_request()
 
         # Create relationship connection
-        connection = agent.new_connection(
+        connection = self.new_connection(
             invite_connection=invite_connection,
             target=Target(
                 endpoint=msg["connection"]["DIDDoc"]["service"][0]["serviceEndpoint"],

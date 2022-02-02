@@ -5,6 +5,7 @@ import logging
 import signal
 
 from aiohttp import web
+from aries_staticagent.dispatcher.handler_dispatcher import HandlerDispatcher
 from configargparse import ArgumentParser, YAMLConfigFileParser
 
 from . import admin
@@ -118,31 +119,46 @@ async def main():
     args = config()
     print(f"Starting proxy with endpoint: {args.endpoint}", flush=True)
 
-    agent = Agent()
-    Agent.set(agent)
+    dispatcher = HandlerDispatcher()
+    verkeys_to_connections = {}
 
     # Modules
-    connections = Connections(args.endpoint)
+    connections = Connections(
+        dispatcher, verkeys_to_connections, endpoint=args.endpoint
+    )
     Connections.set(connections)
     coordinate_mediation = CoordinateMediation()
 
+    # Agent
+    agent = Agent(dispatcher, connections.receive_invite_url, verkeys_to_connections)
+    print(
+        *[
+            hex(id(obj))
+            for obj in (
+                verkeys_to_connections,
+                connections.connections,
+                agent.connections,
+            )
+        ]
+    )
+    Agent.set(agent)
+
     # Routes
-    agent.route_module(BasicMessage())
-    agent.route_module(Routing())
-    agent.route_module(connections)
-    agent.route_module(coordinate_mediation)
+    dispatcher.extend(BasicMessage().routes)
+    dispatcher.extend(Routing().routes)
+    dispatcher.extend(connections.routes)
+    dispatcher.extend(coordinate_mediation.routes)
 
     # Recall connections
+    store = None
     if args.enable_store:
         store = Store(args.repo_uri, args.repo_key)
         Store.set(store)
         LOGGER.debug("Recalling connections")
-        async with store:
-            connections.mediator_connection = await store.retrieve_mediator()
-            connections.agent_connection = await store.retrieve_agent()
+        await agent.load_connections_from_store(store)
 
     async with webserver(args.port, agent):
-        if connections.mediator_connection:
+        if agent.mediator_connection:
             LOGGER.debug("Mediator connection loaded from store")
         else:
             agent.state = "setup"
@@ -151,12 +167,12 @@ async def main():
             if not args.mediator_invite:
                 LOGGER.debug("Awaiting mediator invitation over HTTP")
                 print("Awaiting mediator invitation over HTTP")
-                mediator_connection = await connections.mediator_invite_received()
+                mediator_connection = await agent.mediator_invite_received()
             else:
                 LOGGER.debug(
                     "Receiving mediator invitation from input: %s", args.mediator_invite
                 )
-                mediator_connection = await connections.receive_mediator_invite(
+                mediator_connection = await agent.receive_mediator_invite(
                     args.mediator_invite
                 )
             await mediator_connection.completion()
@@ -171,41 +187,51 @@ async def main():
                 recipient_key=mediator_connection.verkey_b58,
             )
 
-        if connections.agent_connection:
+        if agent.agent_connection:
             LOGGER.debug("Agent connection loaded from store")
         else:
             agent.state = "setup"
             # Connect to agent by creating invite and awaiting connection completion
             agent_connection, invite = connections.create_invitation()
-            connections.agent_invitation = invite
+            agent.agent_invitation = invite
             print("Invitation URL:", invite, flush=True)
+            print(
+                *[
+                    hex(id(obj))
+                    for obj in (
+                        verkeys_to_connections,
+                        connections.connections,
+                        agent.connections,
+                    )
+                ],
+                flush=True,
+            )
             agent_connection = await agent_connection.completion()
-            connections.agent_connection = agent_connection
+            agent.agent_connection = agent_connection
             print("Connection completed successfully")
 
             print("Waiting a moment before beginning message retriever")
             await asyncio.sleep(3)
 
-        if not connections.mediator_connection:
+        if not agent.mediator_connection:
             raise RuntimeError("Mediator connection should be set")
 
-        retriever = MessageRetriever(
-            connections.mediator_connection, args.poll_interval
-        )
+        if not agent.agent_connection:
+            raise RuntimeError("Agent connection should be set")
+
+        # Store connections
+        if store:
+            LOGGER.debug("Saving connections")
+            await agent.save_connections_to_store(store)
+
+        retriever = MessageRetriever(agent.mediator_connection, args.poll_interval)
+
         try:
             agent.state = "ready"
             await retriever.start()
         finally:
             LOGGER.debug("Stopping retriever")
             await retriever.stop()
-
-            # Store connections
-            store = Store.get()
-            if store:
-                LOGGER.debug("Saving connections")
-                async with store:
-                    await store.store_agent(connections.agent_connection)
-                    await store.store_mediator(connections.mediator_connection)
 
 
 if __name__ == "__main__":

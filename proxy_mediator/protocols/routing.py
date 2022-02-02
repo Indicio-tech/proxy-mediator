@@ -7,9 +7,9 @@ from aries_staticagent.message import BaseMessage, Message
 from aries_staticagent.module import Module, ModuleRouter
 from pydantic.class_validators import validator
 
-from ..agent import Connection
+from ..agent import Agent
+from ..connection import Connection
 from ..error import Reportable
-from .connections import Connections
 from .constants import DIDCOMM, DIDCOMM_OLD
 
 
@@ -65,17 +65,17 @@ class Routing(Module):
     async def forward(self, msg: Message, conn: Connection):
         """Handle forward message."""
         fwd = Forward.parse_obj(msg.dict(by_alias=True))
-        connections = Connections.get()
-        if not connections.agent_connection:
+        agent = Agent.get()
+        if not agent.agent_connection:
             raise AgentConnectionNotEstablished(
                 "Connection to the agent has not yet been established."
             )
-        if not connections.mediator_connection:
+        if not agent.mediator_connection:
             raise MediatorConnectionNotEstablished(
                 "Connection to mediator has not yet been established; "
                 "forward messages may only be received from mediator connection"
             )
-        if conn != connections.mediator_connection:
+        if conn != agent.mediator_connection:
             raise ForwardFromUnauthorizedConnection(
                 "Forward messages may only be received from mediator connection"
             )
@@ -83,7 +83,7 @@ class Routing(Module):
         # Assume forward is for the agent connection and just send.
         # Do not perform any wrapping on message (send as "plaintext") because
         # message is already packed.
-        assert connections.agent_connection.target
-        endpoint = connections.agent_connection.target.endpoint
+        assert agent.agent_connection.target
+        endpoint = agent.agent_connection.target.endpoint
         assert endpoint
-        await connections.agent_connection._send(json.dumps(fwd.msg).encode(), endpoint)
+        await agent.agent_connection._send(json.dumps(fwd.msg).encode(), endpoint)

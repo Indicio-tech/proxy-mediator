@@ -6,9 +6,9 @@ from typing import List, Optional
 from aries_staticagent.message import Message
 from aries_staticagent.module import Module, ModuleRouter
 
-from ..agent import Connection
+from ..agent import Agent
+from ..connection import Connection
 from ..error import ProtocolError, Reportable, problem_reporter
-from .connections import Connections
 from .constants import DIDCOMM, DIDCOMM_OLD
 
 
@@ -114,7 +114,7 @@ class CoordinateMediation(Module):
     @problem_reporter(exceptions=MediationError)
     async def mediate_request(self, msg, conn):
         """Handle mediation request message."""
-        connections = Connections.get()
+        agent = Agent.get()
         LOGGER.debug("Received mediation request message: %s", msg.pretty_print())
         if (
             not self.external_pending_request
@@ -125,7 +125,7 @@ class CoordinateMediation(Module):
             )
 
         assert self.external_mediator_routing_keys
-        assert connections.mediator_connection
+        assert agent.mediator_connection
 
         self.agent_request_received = True
         await conn.send_async(
@@ -133,7 +133,7 @@ class CoordinateMediation(Module):
                 "@type": self.type("mediate-grant"),
                 "endpoint": self.external_mediator_endpoint,
                 "routing_keys": [
-                    connections.mediator_connection.verkey_b58,
+                    agent.mediator_connection.verkey_b58,
                     *self.external_mediator_routing_keys,
                 ],
             }

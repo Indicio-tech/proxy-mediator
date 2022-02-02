@@ -2,18 +2,15 @@
 Proxy Mediator Agent.
 """
 import asyncio
-from asyncio.futures import Future
 from contextvars import ContextVar
 import logging
 from typing import Callable, Iterable, MutableMapping, Optional
 
-from aries_staticagent import Connection as AsaPyConn
-from aries_staticagent.connection import Target
-from aries_staticagent.dispatcher.handler_dispatcher import HandlerDispatcher
-from aries_staticagent.message import MsgType
-from aries_staticagent.module import Module
 from aries_staticagent.crypto import recipients_from_packed_message
-from statemachine import State, StateMachine
+from aries_staticagent.dispatcher.base import Dispatcher
+
+from .connection import Connection
+from .store import Store
 
 
 LOGGER = logging.getLogger(__name__)
@@ -22,62 +19,6 @@ VAR: ContextVar["Agent"] = ContextVar("agent")
 
 class ConnectionNotFound(Exception):
     """Raised when connection for message not found."""
-
-
-class Connection(AsaPyConn):
-    """Wrapper around Static Agent library connection to provide state."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.state: str = "null"
-        self._completed: Future = asyncio.get_event_loop().create_future()
-        self.multiuse: bool = False
-        self.invitation_key: Optional[str] = None
-        self.diddoc: Optional[dict] = None
-
-    @property
-    def is_completed(self):
-        return self._completed.done()
-
-    def complete(self):
-        """Complete this connection"""
-        self._completed.set_result(self)
-
-    async def completion(self) -> "Connection":
-        """Await connection completion.
-
-        For invitation connections, the connection is replaced after receiving
-        a connection request. This will return the completed connection.
-        """
-        return await self._completed
-
-    def from_invite(self, invite: "Connection"):
-        """Transfer state from invite connection to relationship connection."""
-        self.state = invite.state
-        self._completed = invite._completed
-
-
-class ConnectionMachine(StateMachine):
-    null = State("null", initial=True)
-    invite_sent = State("invite_sent")
-    invite_received = State("invited")
-    request_sent = State("request_sent")
-    request_received = State("requested")
-    response_sent = State("response_sent")
-    response_received = State("responded")
-    complete = State("complete")
-
-    send_invite = null.to(invite_sent)
-    receive_request = invite_sent.to(request_received)
-    send_response = request_received.to(response_sent)
-
-    receive_invite = null.to(invite_received)
-    send_request = invite_received.to(request_sent)
-    receive_response = request_sent.to(response_received)
-    send_ping = response_received.to(complete) | complete.to.itself()
-    receive_ping = response_sent.to(complete) | complete.to.itself()
-    send_ping_response = complete.to.itself()
-    receive_ping_response = complete.to.itself()
 
 
 class Agent:
@@ -93,16 +34,27 @@ class Agent:
         """Return context var for agent."""
         return VAR.set(value)
 
-    def __init__(self, connections: MutableMapping[str, Connection] = None):
-        super().__init__()
+    def __init__(
+        self,
+        dispatcher: Dispatcher,
+        receive_invite_url: Callable,
+        connections: MutableMapping[str, Connection] = None,
+    ):
         self.connections: MutableMapping[str, Connection] = (
-            connections if connections else {}
+            connections if connections is not None else {}
         )
 
         # We want each connection created by this module to share the same routes
         # so this same dispatcher will be used for all created connections.
-        self.dispatcher = HandlerDispatcher()
+        self.dispatcher = dispatcher
         self.state: str = "init"
+
+        # Special connections
+        self.receive_invite_url = receive_invite_url
+        self.mediator_connection: Optional[Connection] = None
+        self._mediator_connection_event = asyncio.Event()
+        self.agent_connection: Optional[Connection] = None
+        self.agent_invitation: Optional[str] = None
 
     def connections_for_message(self, packed_message: bytes) -> Iterable[Connection]:
         recipients = recipients_from_packed_message(packed_message)
@@ -115,67 +67,74 @@ class Agent:
             )
         return connections
 
-    def new_connection(
-        self,
-        *,
-        multiuse: bool = False,
-        invitation_key: str = None,
-        invite_connection: Connection = None,
-        target: Target = None,
-    ):
-        """Return new connection and store in connections."""
-        conn = Connection.random(target=target, dispatcher=self.dispatcher)
-        conn.multiuse = multiuse
-        conn.invitation_key = invitation_key
-        self.connections[conn.verkey_b58] = conn
-        if invite_connection:
-            conn.from_invite(invite_connection)
-            conn.invitation_key = invite_connection.verkey_b58
-        return conn
-
-    def get_connection(self, verkey: str):
-        """Return connection by key."""
-        return self.connections[verkey]
-
-    def delete_connection_by_key(self, verkey: str):
-        if verkey in self.connections:
-            self.connections.pop(verkey)
-
-    def delete_connection(self, conn: Connection):
-        if conn.verkey_b58 in self.connections:
-            self.connections.pop(conn.verkey_b58)
-
-    def store_connection(self, verkey: str, conn: Connection):
-        """Store a connection.
-
-        If the connection was previously created with new_connection and not
-        deleted, there is no need to call this method.
-        """
-        self.connections[verkey] = conn
-
-    def route_method(self, msg_type: str) -> Callable:
-        """Register route decorator."""
-
-        def register_route_dec(func):
-            self.dispatcher.add(MsgType(msg_type), func)
-            return func
-
-        return register_route_dec
-
-    def route_module(self, module: Module):
-        """Register a module for routing."""
-        return self.dispatcher.extend(module.routes)
-
     async def handle_message(self, packed_message: bytes) -> Optional[bytes]:
+        """Handle a received message."""
         response = []
         for conn in self.connections_for_message(packed_message):
             LOGGER.debug(
                 "Handling message with connection using verkey: %s", conn.verkey_b58
             )
             with conn.session(response.append) as session:
-                await session.handle(packed_message)
+                LOGGER.debug(
+                    "Handling message with connection using verkey: %s", conn.verkey_b58
+                )
+                msg = conn.unpack(packed_message)
+                if session:
+                    session.update_thread_from_msg(msg)
+                await self.dispatcher.dispatch(msg, conn)
 
         if response:
             return response.pop()
 
         return None
+
+    # Mediator setup operations
+    async def mediator_invite_received(self) -> Connection:
+        """Await event notifying that mediator invite has been received."""
+        await self._mediator_connection_event.wait()
+        if not self.mediator_connection:
+            raise RuntimeError("Mediator connection event triggered without set")
+        return self.mediator_connection
+
+    async def receive_mediator_invite(self, invite: str) -> Connection:
+        """Receive mediator invitation."""
+        self.mediator_connection = await self.receive_invite_url(invite, endpoint="")
+        self._mediator_connection_event.set()
+        return self.mediator_connection
+
+    # Store
+    async def load_connections_from_store(self, store: Store):
+        """Load connections from store."""
+        async with store:
+            async with store.session() as session:
+                entries = await store.retrieve_connections(session)
+                connections = [
+                    Connection.from_store(entry.value_json, dispatcher=self.dispatcher)
+                    for entry in entries
+                ]
+                self.connections.update(
+                    {connection.verkey_b58: connection for connection in connections}
+                )
+
+                mediator_connection_key = await store.retrieve_mediator(session)
+                agent_connection_key = await store.retrieve_agent(session)
+
+        if mediator_connection_key:
+            self.mediator_connection = self.connections.get(mediator_connection_key)
+        if agent_connection_key:
+            self.agent_connection = self.connections.get(agent_connection_key)
+
+    async def save_connections_to_store(self, store: Store):
+        """Save connections to store."""
+        async with store:
+            async with store.transaction() as txn:
+                for connection in self.connections.values():
+                    await store.store_connection(txn, connection)
+
+                if self.agent_connection:
+                    await store.store_agent(txn, self.agent_connection.verkey_b58)
+
+                if self.mediator_connection:
+                    await store.store_mediator(txn, self.mediator_connection.verkey_b58)
+
+                await txn.commit()
