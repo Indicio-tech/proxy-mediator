@@ -66,19 +66,18 @@ class Connection(AsaPyConn):
         return json.dumps(value)
 
     @classmethod
-    def from_store(cls, value, **kwargs) -> "Connection":
+    def from_store(cls, value: dict, **kwargs) -> "Connection":
         """Convert JSON object into Connection object"""
-        info = json.loads(value)
         conn = cls.from_parts(
-            (info["verkey"], info["sigkey"]),
-            recipients=info.get("target", {}).get("recipients"),
-            endpoint=info.get("target", {}).get("endpoint"),
+            (value["verkey"], value["sigkey"]),
+            recipients=value.get("target", {}).get("recipients"),
+            endpoint=value.get("target", {}).get("endpoint"),
             **kwargs
         )
-        conn.state = info["state"]
-        conn.multiuse = info["multiuse"]
-        conn.invitation_key = info["invitation_key"]
-        conn.diddoc = info["diddoc"]
+        conn.state = value["state"]
+        conn.multiuse = value["multiuse"]
+        conn.invitation_key = value["invitation_key"]
+        conn.diddoc = value["diddoc"]
         return conn
 
 
