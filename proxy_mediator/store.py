@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
+import logging
 from typing import Optional, Sequence
 
 from aries_askar import Store as AskarStore, AskarError, AskarErrorCode
@@ -9,6 +10,7 @@ from proxy_mediator.agent import Connection
 
 
 VAR: ContextVar["Store"] = ContextVar("Store")
+LOGGER = logging.getLogger(__name__)
 
 
 class Store:
@@ -82,6 +84,7 @@ class Store:
     async def store_connection(self, session: Session, connection: Connection):
         """Insert agent connection into store"""
         value = connection.to_store().encode()
+        LOGGER.debug("Saving connection: %s", value)
         try:
             await session.insert(
                 self.CATEGORY_CONNECTIONS,
@@ -90,12 +93,16 @@ class Store:
             )
         except AskarError as err:
             if err.code == AskarErrorCode.DUPLICATE:
-                await session.replace("connection", connection.verkey_b58, value)
+                await session.remove(self.CATEGORY_CONNECTIONS, connection.verkey_b58)
+                await session.insert(
+                    self.CATEGORY_CONNECTIONS, connection.verkey_b58, value
+                )
             else:
                 raise
 
     async def store_agent(self, session: Session, key: str):
         """Save agent connection verkey for later recall."""
+        LOGGER.debug("Saving agent connection: %s", key)
         try:
             await session.insert(
                 self.CATEGORY_IDENTIFIERS,
@@ -104,7 +111,8 @@ class Store:
             )
         except AskarError as err:
             if err.code == AskarErrorCode.DUPLICATE:
-                await session.replace(
+                await session.remove(self.CATEGORY_IDENTIFIERS, self.IDENTIFIER_AGENT)
+                await session.insert(
                     self.CATEGORY_IDENTIFIERS,
                     self.IDENTIFIER_AGENT,
                     key,
@@ -114,6 +122,7 @@ class Store:
 
     async def store_mediator(self, session: Session, key: str):
         """Save agent connection verkey for later recall."""
+        LOGGER.debug("Saving mediator connection: %s", key)
         try:
             await session.insert(
                 self.CATEGORY_IDENTIFIERS,
@@ -133,14 +142,17 @@ class Store:
     async def retrieve_connections(self, session: Session) -> Sequence[Entry]:
         """Retrieve mediation connection from store"""
         entries = list(await session.fetch_all(self.CATEGORY_CONNECTIONS))
+        LOGGER.debug("Retrieve connections returning: %s", entries)
         return entries
 
-    async def retrieve_agent(self, session: Session) -> str:
+    async def retrieve_agent(self, session: Session) -> Optional[str]:
         """Retrieve mediation connection from store"""
-        entry = await session.fetch(self.CATEGORY_CONNECTIONS, self.IDENTIFIER_AGENT)
-        return str(entry.value if entry else None)
+        entry = await session.fetch(self.CATEGORY_IDENTIFIERS, self.IDENTIFIER_AGENT)
+        LOGGER.debug("Retrieve agent returning: %s", entry.value if entry else None)
+        return entry.value.decode("ascii") if entry else None
 
-    async def retrieve_mediator(self, session: Session) -> str:
+    async def retrieve_mediator(self, session: Session) -> Optional[str]:
         """Retrieve mediation connection from store"""
-        entry = await session.fetch(self.CATEGORY_CONNECTIONS, self.IDENTIFIER_MEDIATOR)
-        return str(entry.value if entry else None)
+        entry = await session.fetch(self.CATEGORY_IDENTIFIERS, self.IDENTIFIER_MEDIATOR)
+        LOGGER.debug("Retrieve mediator returning: %s", entry.value if entry else None)
+        return entry.value.decode("ascii") if entry else None

@@ -131,16 +131,6 @@ async def main():
 
     # Agent
     agent = Agent(dispatcher, connections.receive_invite_url, verkeys_to_connections)
-    print(
-        *[
-            hex(id(obj))
-            for obj in (
-                verkeys_to_connections,
-                connections.connections,
-                agent.connections,
-            )
-        ]
-    )
     Agent.set(agent)
 
     # Routes
@@ -195,17 +185,6 @@ async def main():
             agent_connection, invite = connections.create_invitation()
             agent.agent_invitation = invite
             print("Invitation URL:", invite, flush=True)
-            print(
-                *[
-                    hex(id(obj))
-                    for obj in (
-                        verkeys_to_connections,
-                        connections.connections,
-                        agent.connections,
-                    )
-                ],
-                flush=True,
-            )
             agent_connection = await agent_connection.completion()
             agent.agent_connection = agent_connection
             print("Connection completed successfully")
