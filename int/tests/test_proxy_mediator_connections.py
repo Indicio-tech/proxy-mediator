@@ -6,6 +6,7 @@ from acapy_client.api.connection import (
     create_invitation,
     get_connection,
     receive_invitation,
+    get_connections_conn_id_endpoints,
 )
 from acapy_client.models.conn_record import ConnRecord
 from acapy_client.models.create_invitation_request import CreateInvitationRequest
@@ -77,3 +78,10 @@ async def test_connection_from_alice(
 
     await record_state("active", partial(_retrieve, sender, invite.connection_id))
     await record_state("active", partial(_retrieve, receiver, connection.connection_id))
+
+    endpoint_retrieved = await get_connections_conn_id_endpoints.asyncio(
+        conn_id=invite.connection_id,
+        client=sender,
+    )
+    assert endpoint_retrieved
+    assert endpoint_retrieved.my_endpoint == endpoint
