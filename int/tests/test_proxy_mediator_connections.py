@@ -80,8 +80,8 @@ async def test_connection_from_alice(
     await record_state("active", partial(_retrieve, receiver, connection.connection_id))
 
     endpoint_retrieved = await get_connections_conn_id_endpoints.asyncio(
-        conn_id=invite.connection_id,
-        client=sender,
+        conn_id=connection.connection_id,
+        client=receiver,
     )
     assert endpoint_retrieved
-    assert endpoint_retrieved.my_endpoint == endpoint
+    assert endpoint_retrieved.their_endpoint == endpoint
