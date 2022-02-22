@@ -15,7 +15,7 @@ services:
       LOG_LEVEL: DEBUG
 
   agent:
-    image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.2
+    image: dbluhm/acapy:fix-mediation-073
     volumes:
       - indy:/home/indy/.indy_client
     command: >
