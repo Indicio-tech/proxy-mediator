@@ -9,7 +9,7 @@ services:
       PORT: 3000
       ENDPOINT: http://proxy:3000
       ENABLE_STORE: "true"
-      REPO_URI: "sqlite://:memeory:"
+      REPO_URI: "sqlite://:memory:"
       REPO_KEY: integration-testing
       LOG_LEVEL: DEBUG
 
