@@ -15,6 +15,10 @@ RUN poetry install --no-dev
 
 # Final Image
 FROM python:3.7
+
+RUN adduser indy
+USER indy
+
 WORKDIR /app
 COPY --from=base /app/.venv /app/.venv
 ENV PATH="/app/.venv/bin:$PATH"

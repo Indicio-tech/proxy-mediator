@@ -18,6 +18,9 @@ COPY ./pyproject.toml ./poetry.lock ./
 RUN poetry install --no-dev
 
 FROM python:3.7-alpine as main
+
+RUN adduser -D indy
+
 WORKDIR /usr/src/app
 COPY --from=base /usr/src/app /usr/src/app
 ENV PATH="/usr/src/app/.venv/bin:$PATH"
@@ -27,5 +30,7 @@ ADD https://github.com/ufoscout/docker-compose-wait/releases/download/$WAIT_VERS
 RUN chmod +x /wait
 
 COPY ./main.py main.py
+
+USER indy
 
 ENTRYPOINT ["/bin/sh", "-c", "/wait && python main.py \"$@\"", "--"]
