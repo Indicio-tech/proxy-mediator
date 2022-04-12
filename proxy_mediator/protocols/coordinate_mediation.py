@@ -2,11 +2,14 @@ import asyncio
 from contextvars import ContextVar
 import logging
 from typing import List, Optional
+
 from aries_staticagent.message import Message
 from aries_staticagent.module import Module, ModuleRouter
-from ..agent import Connection
-from .connections import Connections
-from ..error import problem_reporter, Reportable, ProtocolError
+
+from ..agent import Agent
+from ..connection import Connection
+from ..error import ProtocolError, Reportable, problem_reporter
+from .constants import DIDCOMM, DIDCOMM_OLD
 
 
 LOGGER = logging.getLogger(__name__)
@@ -56,7 +59,7 @@ VAR: ContextVar["CoordinateMediation"] = ContextVar("coordinate_mediation")
 
 
 class CoordinateMediation(Module):
-    protocol = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/coordinate-mediation/1.0"
+    protocol = f"{DIDCOMM_OLD}coordinate-mediation/1.0"
     route = ModuleRouter(protocol)
 
     @classmethod
@@ -107,10 +110,11 @@ class CoordinateMediation(Module):
         LOGGER.debug("Received keylist update response: %s", response.pretty_print())
 
     @route(name="mediate-request")
+    @route(doc_uri=DIDCOMM, name="mediate-request")
     @problem_reporter(exceptions=MediationError)
     async def mediate_request(self, msg, conn):
         """Handle mediation request message."""
-        connections = Connections.get()
+        agent = Agent.get()
         LOGGER.debug("Received mediation request message: %s", msg.pretty_print())
         if (
             not self.external_pending_request
@@ -121,7 +125,7 @@ class CoordinateMediation(Module):
             )
 
         assert self.external_mediator_routing_keys
-        assert connections.mediator_connection
+        assert agent.mediator_connection
 
         self.agent_request_received = True
         await conn.send_async(
@@ -129,13 +133,14 @@ class CoordinateMediation(Module):
                 "@type": self.type("mediate-grant"),
                 "endpoint": self.external_mediator_endpoint,
                 "routing_keys": [
-                    connections.mediator_connection.verkey_b58,
+                    agent.mediator_connection.verkey_b58,
                     *self.external_mediator_routing_keys,
                 ],
             }
         )
 
     @route(name="mediate-grant")
+    @route(doc_uri=DIDCOMM, name="mediate-grant")
     @problem_reporter(exceptions=MediationError)
     async def mediate_grant(self, msg, conn):
         """Handle mediation grant message."""
@@ -149,6 +154,7 @@ class CoordinateMediation(Module):
         self.external_pending_request.complete()
 
     @route(name="keylist-update")
+    @route(doc_uri=DIDCOMM, name="keylist-update")
     async def keylist_update(self, msg: Message, conn):
         """Handle keylist update message."""
         LOGGER.debug("Received keylist update message: %s", msg.pretty_print())

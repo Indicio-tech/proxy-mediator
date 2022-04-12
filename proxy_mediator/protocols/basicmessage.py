@@ -1,12 +1,15 @@
 from aries_staticagent.module import Module, ModuleRouter
 from aries_staticagent.utils import timestamp
 
+from .constants import DIDCOMM, DIDCOMM_OLD
+
 
 class BasicMessage(Module):
-    protocol = "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/basicmessage/1.0"
+    protocol = f"{DIDCOMM_OLD}basicmessage/1.0"
     route = ModuleRouter(protocol)
 
     @route
+    @route(doc_uri=DIDCOMM)
     async def message(self, msg, conn):
         """Automatically respond to basicmessages."""
         await conn.send_async(

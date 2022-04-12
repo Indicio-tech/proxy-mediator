@@ -1,25 +1,25 @@
+from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from enum import Enum
-import json
-from typing import Optional
+import logging
+from typing import Optional, Sequence
 
 from aries_askar import Store as AskarStore, AskarError, AskarErrorCode
-from aries_staticagent import crypto
+from aries_askar.store import Entry, Session
 
 from proxy_mediator.agent import Connection
 
 
 VAR: ContextVar["Store"] = ContextVar("Store")
+LOGGER = logging.getLogger(__name__)
 
 
 class Store:
     """Helper for working with Askar store."""
 
-    class Name(Enum):
-        """Types of entities stored."""
-
-        agent = "agent"
-        mediator = "mediator"
+    CATEGORY_CONNECTIONS = "connections"
+    CATEGORY_IDENTIFIERS = "identifiers"
+    IDENTIFIER_AGENT = "agent"
+    IDENTIFIER_MEDIATOR = "mediator"
 
     def __init__(self, repo_uri: str, key: str):
         """Initialize store with repo_uri and key for wallet.
@@ -61,83 +61,98 @@ class Store:
 
     async def __aexit__(self, type, value, tb):
         await self.close()
+        return False
 
-    @staticmethod
-    def serialize_json(conn):
-        """Convert Connection object to JSON object"""
-        return json.dumps(
-            {
-                "state": conn.state,
-                "multiuse": conn.multiuse,
-                "invitation_key": conn.invitation_key,
-                "did": conn.did,
-                "verkey": conn.verkey_b58,
-                "sigkey": crypto.bytes_to_b58(conn.sigkey),
-                "recipients": [
-                    crypto.bytes_to_b58(recip) for recip in conn.target.recipients
-                ]
-                if conn.target.recipients
-                else [],
-                "endpoint": conn.target.endpoint,
-                "diddoc": conn.diddoc,
-            }
-        )
-
-    @staticmethod
-    def deserialize_json(json_obj):
-        """Convert JSON object into Connection object"""
-        info = json.loads(json_obj)
-        conn = Connection.from_parts(
-            (info["verkey"], info["sigkey"]),
-            recipients=info["recipients"],
-            endpoint=info["endpoint"],
-        )
-        conn.state = info["state"]
-        conn.multiuse = info["multiuse"]
-        conn.invitation_key = info["invitation_key"]
-        conn.diddoc = info["diddoc"]
-        return conn
-
-    async def store_connection(self, connection: Connection, name: Name):
-        """Insert agent connection into store"""
+    @asynccontextmanager
+    async def transaction(self):
+        """Start transaction."""
         if not self.store:
             raise ValueError("Store must be opened")
 
-        value = Store.serialize_json(connection).encode()
         async with self.store.transaction() as txn:
-            try:
-                await txn.insert(
-                    "connection",
-                    name.value,
-                    value,
-                )
-            except AskarError as err:
-                if err.code == AskarErrorCode.DUPLICATE:
-                    await txn.replace("connection", name.value, value)
-                else:
-                    raise
-            await txn.commit()
+            yield txn
 
-    async def retrieve_connection(self, name: Name):
-        """Retrieve mediation connection from store"""
+    @asynccontextmanager
+    async def session(self):
+        """Start session."""
         if not self.store:
             raise ValueError("Store must be opened")
 
-        async with self.store as session:
-            entry = await session.fetch("connection", name.value)
+        async with self.store.session() as session:
+            yield session
 
-        if entry:
-            return Store.deserialize_json(entry.value)
-        return None
+    async def store_connection(self, session: Session, connection: Connection):
+        """Insert agent connection into store"""
+        value = connection.to_store().encode()
+        LOGGER.debug("Saving connection: %s", value)
+        try:
+            await session.insert(
+                self.CATEGORY_CONNECTIONS,
+                connection.verkey_b58,
+                value,
+            )
+        except AskarError as err:
+            if err.code == AskarErrorCode.DUPLICATE:
+                await session.remove(self.CATEGORY_CONNECTIONS, connection.verkey_b58)
+                await session.insert(
+                    self.CATEGORY_CONNECTIONS, connection.verkey_b58, value
+                )
+            else:
+                raise
 
-    async def store_agent(self, connection: Connection):
-        return await self.store_connection(connection, self.Name.agent)
+    async def store_agent(self, session: Session, key: str):
+        """Save agent connection verkey for later recall."""
+        LOGGER.debug("Saving agent connection: %s", key)
+        try:
+            await session.insert(
+                self.CATEGORY_IDENTIFIERS,
+                self.IDENTIFIER_AGENT,
+                key,
+            )
+        except AskarError as err:
+            if err.code == AskarErrorCode.DUPLICATE:
+                await session.remove(self.CATEGORY_IDENTIFIERS, self.IDENTIFIER_AGENT)
+                await session.insert(
+                    self.CATEGORY_IDENTIFIERS,
+                    self.IDENTIFIER_AGENT,
+                    key,
+                )
+            else:
+                raise
 
-    async def store_mediator(self, connection: Connection):
-        return await self.store_connection(connection, self.Name.mediator)
+    async def store_mediator(self, session: Session, key: str):
+        """Save agent connection verkey for later recall."""
+        LOGGER.debug("Saving mediator connection: %s", key)
+        try:
+            await session.insert(
+                self.CATEGORY_IDENTIFIERS,
+                self.IDENTIFIER_MEDIATOR,
+                key,
+            )
+        except AskarError as err:
+            if err.code == AskarErrorCode.DUPLICATE:
+                await session.replace(
+                    self.CATEGORY_IDENTIFIERS,
+                    self.IDENTIFIER_MEDIATOR,
+                    key,
+                )
+            else:
+                raise
 
-    async def retrieve_agent(self):
-        return await self.retrieve_connection(self.Name.agent)
+    async def retrieve_connections(self, session: Session) -> Sequence[Entry]:
+        """Retrieve mediation connection from store"""
+        entries = list(await session.fetch_all(self.CATEGORY_CONNECTIONS))
+        LOGGER.debug("Retrieve connections returning: %s", entries)
+        return entries
 
-    async def retrieve_mediator(self):
-        return await self.retrieve_connection(self.Name.mediator)
+    async def retrieve_agent(self, session: Session) -> Optional[str]:
+        """Retrieve mediation connection from store"""
+        entry = await session.fetch(self.CATEGORY_IDENTIFIERS, self.IDENTIFIER_AGENT)
+        LOGGER.debug("Retrieve agent returning: %s", entry.value if entry else None)
+        return entry.value.decode("ascii") if entry else None
+
+    async def retrieve_mediator(self, session: Session) -> Optional[str]:
+        """Retrieve mediation connection from store"""
+        entry = await session.fetch(self.CATEGORY_IDENTIFIERS, self.IDENTIFIER_MEDIATOR)
+        LOGGER.debug("Retrieve mediator returning: %s", entry.value if entry else None)
+        return entry.value.decode("ascii") if entry else None

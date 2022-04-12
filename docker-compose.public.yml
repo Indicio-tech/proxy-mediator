@@ -15,12 +15,15 @@ services:
       LOG_LEVEL: DEBUG
 
   agent:
-    image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.2
+    image: dbluhm/acapy:fix-mediation-073
+    volumes:
+      - indy:/home/indy/.indy_client
     command: >
       start --label agent -it http 0.0.0.0 3000 -ot http -e http://agent:3000
       --no-ledger --admin 0.0.0.0 3001 --admin-insecure-mode
       --debug-connections --auto-accept-invites --auto-accept-requests
       --auto-ping-connection --log-level debug
+      --wallet-type indy --wallet-name agent --wallet-key insecure --auto-provision
     ports:
       - 4001:3001
 
@@ -42,3 +45,4 @@ services:
 
 volumes:
   store:
+  indy:
