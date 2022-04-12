@@ -16,7 +16,7 @@ RUN poetry install --no-dev
 # Final Image
 FROM python:3.7
 
-RUN adduser indy
+RUN useradd -ms /bin/sh indy
 USER indy
 
 WORKDIR /app

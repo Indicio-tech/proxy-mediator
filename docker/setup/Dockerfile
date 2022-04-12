@@ -19,7 +19,7 @@ RUN poetry install --no-dev
 
 FROM python:3.7-alpine as main
 
-RUN adduser -D indy
+RUN useradd -ms /bin/sh indy
 
 WORKDIR /usr/src/app
 COPY --from=base /usr/src/app /usr/src/app
