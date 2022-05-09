@@ -38,6 +38,7 @@ from httpx import AsyncClient
 
 PROXY = getenv("PROXY", "http://localhost:3000")
 AGENT = getenv("AGENT", "http://localhost:3001")
+AGENT_HEADERS = getenv("AGENT_HEADERS", "{}")
 MEDIATOR = getenv("MEDIATOR")
 MEDIATOR_INVITE = getenv("MEDIATOR_INVITE")
 
@@ -243,7 +244,7 @@ async def main():
         else:
             print(f"Proxy state: {state}")
 
-        agent = Acapy(Client(base_url=AGENT, timeout=5.0))
+        agent = Acapy(Client(base_url=AGENT, timeout=5.0, headers=json.loads(AGENT_HEADERS)))
 
         if MEDIATOR and not MEDIATOR_INVITE:
             mediator = Acapy(Client(base_url=MEDIATOR, timeout=5.0))
