@@ -9,7 +9,7 @@ license = "Apache-2.0"
 python = "^3.7"
 pytest = "^6.2.5"
 pytest-asyncio = "^0.16.0"
-acapy-client = {git = "https://github.com/Indicio-tech/acapy-client.git", rev = "d3d4625be103af8cc90f42968f95834674ed3281"}
+acapy-client = {git = "https://github.com/Indicio-tech/acapy-client.git", rev = "8e5ae81758d659a1b481c801819418f2fcb2750b"}
 httpx = "^0.15.4"
 
 [tool.poetry.dev-dependencies]
