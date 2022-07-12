@@ -32,7 +32,7 @@ services:
     entrypoint: /bin/sh -c '/app/wait && python -m proxy_mediator "$$@"' --
 
   agent:
-    image: dbluhm/acapy:fix-mediation-073
+    image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.4
     volumes:
       - indy:/home/indy/.indy_client
     command: >
@@ -62,7 +62,7 @@ services:
       - mediator
 
   mediator:
-    image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
+    image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.4
     volumes:
       - ./docker/acapy-endpoint.sh:/home/indy/acapy-endpoint.sh:z
       - indy:/home/indy/.indy_client
