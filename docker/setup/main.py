@@ -234,7 +234,7 @@ class Acapy:
 
 
 async def main():
-    async with AsyncClient(base_url=PROXY) as client:
+    async with AsyncClient(base_url=PROXY, timeout=60.0) as client:
         proxy = Proxy(client)
         await proxy.initialized()
         state = await proxy.get_status()
