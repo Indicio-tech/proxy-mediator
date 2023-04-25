@@ -470,6 +470,7 @@ files = [
 [[package]]
 name = "zipp"
 version = "3.15.0"
+
 description = "Backport of pathlib-compatible object wrapper for zip files"
 category = "main"
 optional = false
