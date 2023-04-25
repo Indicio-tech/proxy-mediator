@@ -14,7 +14,7 @@ services:
       LOG_LEVEL: DEBUG
 
   agent_alice:
-    image: dbluhm/acapy:fix-mediation-073
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.6-indy-1.16.0-0.8.1
     command: >
       start --label agent_alice -it http 0.0.0.0 4011 -ot http -e http://agent_alice:4011
       --no-ledger --admin 0.0.0.0 4001 --admin-insecure-mode
@@ -26,7 +26,7 @@ services:
 
 
   agent_bob:
-    image: dbluhm/acapy:fix-mediation-073
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.6-indy-1.16.0-0.8.1
     command: >
       start --label agent_bob -it http 0.0.0.0 4012 -ot http -e http://agent_bob:4012
       --no-ledger --admin 0.0.0.0 4002 --admin-insecure-mode
@@ -37,7 +37,7 @@ services:
       - 4002:4002
 
   external_mediator:
-    image: bcgovimages/aries-cloudagent:py36-1.16-1_0.7.1
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.6-indy-1.16.0-0.8.1
     command: >
       start --label external_mediator -it http 0.0.0.0 4013 -it ws 0.0.0.0 3002 -ot http -e http://reverse-proxy
       ws://reverse-proxy/ws --no-ledger --admin 0.0.0.0 4003 --admin-insecure-mode
