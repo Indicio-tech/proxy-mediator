@@ -47,7 +47,7 @@ EXTERNAL_MEDIATOR = getenv("EXTERNAL_MEDIATOR", "http://external_mediator:4013")
 
 
 async def get_proxy_invite() -> dict:
-    async with AsyncClient() as client:
+    async with AsyncClient(timeout=60.0) as client:
         url = None
         while url is None:
             r = await client.get(f"{PROXY}/retrieve_agent_invitation")
@@ -68,7 +68,7 @@ async def get_mediator_invite(external_mediator: Client) -> str:
 
 
 async def proxy_receive_mediator_invite(external_mediator: Client, invite: str):
-    async with AsyncClient() as client:
+    async with AsyncClient(timeout=60.0) as client:
         r = await client.post(
             f"{PROXY}/receive_mediator_invitation", json={"invitation_url": invite}
         )
