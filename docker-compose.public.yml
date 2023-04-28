@@ -15,7 +15,7 @@ services:
       LOG_LEVEL: DEBUG
 
   agent:
-    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.6-indy-1.16.0-0.8.1
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-indy-1.16.0-0.8.1
     volumes:
       - indy:/home/indy/.indy_client
     command: >
