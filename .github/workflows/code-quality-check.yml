@@ -9,8 +9,8 @@ on:
   pull_request:
 
 env:
-  FLAKE8_VERSION: 3.9.2
-  BLACK_VERSION: 21.8b0
+  FLAKE8_VERSION: 5.0.4
+  BLACK_VERSION: 22.8.0
 
 jobs:
   format:
