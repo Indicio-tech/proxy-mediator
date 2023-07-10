@@ -2,7 +2,7 @@ FROM python:3.7 AS base
 WORKDIR /app
 
 # Install and Configure Poetry
-ENV POETRY_VERSION=1.1.11
+ENV POETRY_VERSION=1.4.2
 ENV POETRY_HOME=/opt/poetry
 RUN curl -sSL https://install.python-poetry.org | python -
 ENV PATH="/opt/poetry/bin:$PATH"
