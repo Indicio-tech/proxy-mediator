@@ -12,6 +12,7 @@ from . import admin
 from .agent import Agent
 from .message_retriever import MessageRetriever
 from .protocols import BasicMessage, Connections, CoordinateMediation, Routing
+from .protocols.oob_didexchange import OobDidExchange
 from .store import Store
 
 
@@ -114,6 +115,22 @@ async def webserver(port: int, agent: Agent):
         await runner.cleanup()
 
 
+def handle_oob_and_connections_invites(
+    connections: Connections, did_exchange: OobDidExchange
+):
+    """Handle OOB and Connections invites."""
+
+    async def _handle_oob_and_connections_invites(invite: str, **kargs):
+        if "c_i=" in invite:
+            return await connections.receive_invite_url(invite, **kargs)
+        elif "oob=" in invite:
+            return await did_exchange.receive_invite_url(invite, **kargs)
+        else:
+            raise ValueError("Invalid invite")
+
+    return _handle_oob_and_connections_invites
+
+
 async def main():
     """Main."""
     args = config()
@@ -129,8 +146,16 @@ async def main():
     Connections.set(connections)
     coordinate_mediation = CoordinateMediation()
 
+    did_exchange = OobDidExchange(
+        dispatcher, verkeys_to_connections, endpoint=args.endpoint
+    )
+
     # Agent
-    agent = Agent(dispatcher, connections.receive_invite_url, verkeys_to_connections)
+    agent = Agent(
+        dispatcher,
+        handle_oob_and_connections_invites(connections, did_exchange),
+        verkeys_to_connections,
+    )
     Agent.set(agent)
 
     # Routes
@@ -182,7 +207,7 @@ async def main():
         else:
             agent.state = "setup"
             # Connect to agent by creating invite and awaiting connection completion
-            agent_connection, invite = connections.create_invitation()
+            agent_connection, invite = did_exchange.create_invitation()
             agent.agent_invitation = invite
             print("Invitation URL:", invite, flush=True)
             agent_connection = await agent_connection.completion()
