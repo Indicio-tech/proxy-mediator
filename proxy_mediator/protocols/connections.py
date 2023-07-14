@@ -6,7 +6,7 @@ from base64 import urlsafe_b64decode
 from contextvars import ContextVar
 import json
 import logging
-from typing import MutableMapping
+from typing import MutableMapping, Optional
 
 from aries_staticagent import Message, crypto
 from aries_staticagent.connection import Target
@@ -51,9 +51,9 @@ class Connections(Module):
         self,
         *,
         multiuse: bool = False,
-        invitation_key: str = None,
-        invite_connection: Connection = None,
-        target: Target = None,
+        invitation_key: Optional[str] = None,
+        invite_connection: Optional[Connection] = None,
+        target: Optional[Target] = None,
     ):
         """Return new connection and store in connections."""
         if invite_connection:
@@ -94,7 +94,35 @@ class Connections(Module):
         )
         return await self.receive_invite(invite_msg, **kwargs)
 
-    async def receive_invite(self, invite: Message, *, endpoint: str = None):
+    def doc_for_connection(
+        self, connection: Connection, *, endpoint: Optional[str] = None
+    ) -> dict:
+        """Return a DID Doc for the given connection."""
+        return {
+            "@context": "https://w3id.org/did/v1",
+            "id": connection.did,
+            "publicKey": [
+                {
+                    "id": connection.did + "#keys-1",
+                    "type": "Ed25519VerificationKey2018",
+                    "controller": connection.did,
+                    "publicKeyBase58": connection.verkey_b58,
+                }
+            ],
+            "service": [
+                {
+                    "id": connection.did + "#indy",
+                    "type": "IndyAgent",
+                    "recipientKeys": [connection.verkey_b58],
+                    "routingKeys": [],
+                    "serviceEndpoint": endpoint
+                    if endpoint is not None
+                    else self.endpoint,
+                }
+            ],
+        }
+
+    async def receive_invite(self, invite: Message, *, endpoint: Optional[str] = None):
         """Process an invitation."""
         LOGGER.debug("Received invitation: %s", invite.pretty_print())
         invitation_key = invite["recipientKeys"][0]
@@ -113,29 +141,9 @@ class Connections(Module):
                 "label": "proxy-mediator",
                 "connection": {
                     "DID": new_connection.did,
-                    "DIDDoc": {
-                        "@context": "https://w3id.org/did/v1",
-                        "id": new_connection.did,
-                        "publicKey": [
-                            {
-                                "id": new_connection.did + "#keys-1",
-                                "type": "Ed25519VerificationKey2018",
-                                "controller": new_connection.did,
-                                "publicKeyBase58": new_connection.verkey_b58,
-                            }
-                        ],
-                        "service": [
-                            {
-                                "id": new_connection.did + "#indy",
-                                "type": "IndyAgent",
-                                "recipientKeys": [new_connection.verkey_b58],
-                                "routingKeys": [],
-                                "serviceEndpoint": endpoint
-                                if endpoint is not None
-                                else self.endpoint,
-                            }
-                        ],
-                    },
+                    "DIDDoc": self.doc_for_connection(
+                        new_connection, endpoint=endpoint
+                    ),
                 },
             }
         )

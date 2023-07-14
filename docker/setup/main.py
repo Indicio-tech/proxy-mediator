@@ -13,28 +13,12 @@ from base64 import urlsafe_b64decode
 from functools import partial, wraps
 import json
 from os import getenv
-from typing import Any, Awaitable, Callable, TypeVar, cast
+from typing import Any, Awaitable, Callable, Optional, TypeVar, cast
 
-from acapy_client.api.connection import (
-    create_invitation,
-    get_connection,
-    receive_invitation,
-)
-from acapy_client.api.mediation import (
-    get_mediation_requests_mediation_id,
-    post_mediation_request_conn_id,
-    put_mediation_mediation_id_default_mediator,
-)
-from acapy_client.api.trustping import post_connections_conn_id_send_ping
-from acapy_client.client import Client
-from acapy_client.models.conn_record import ConnRecord
-from acapy_client.models.create_invitation_request import CreateInvitationRequest
-from acapy_client.models.mediation_create_request import MediationCreateRequest
-from acapy_client.models.mediation_record import MediationRecord
-from acapy_client.models.ping_request import PingRequest
-from acapy_client.models.receive_invitation_request import ReceiveInvitationRequest
-from acapy_client.types import Unset
 from httpx import AsyncClient
+
+from controller.controller import Controller
+from controller.models import InvitationRecord, ConnRecord, MediationRecord
 
 PROXY = getenv("PROXY", "http://localhost:3000")
 AGENT = getenv("AGENT", "http://localhost:3001")
@@ -56,7 +40,7 @@ async def poll(
     *,
     interval: float = 3.0,
     max_retry: int = 10,
-    error_msg: str = None,
+    error_msg: Optional[str] = None,
 ) -> Subject:
     count = 0
     subject = await operation()
@@ -72,12 +56,12 @@ async def poll(
 
 
 def poller(
-    func: Func = None,
+    func: Optional[Func] = None,
     *,
-    until: Callable[[Any], bool] = None,
+    until: Optional[Callable[[Any], bool]] = None,
     interval: float = 3.0,
     max_retry: int = 10,
-    error_msg: str = None,
+    error_msg: Optional[str] = None,
 ) -> Func:
     if not func:
         return cast(
@@ -148,93 +132,67 @@ class Proxy:
 
     async def get_invite(self) -> dict:
         url = await self._get_invite()
-        return json.loads(urlsafe_b64decode(url.split("c_i=")[1]))
+        return json.loads(urlsafe_b64decode(url.split("oob=")[1]))
 
 
 class Acapy:
-
     conn_states_order = {"invitation": 0, "request": 1, "response": 2, "active": 3}
 
-    def __init__(self, client: Client):
-        self.client = client
+    def __init__(self, controller: Controller):
+        self.controller = controller
 
     async def get_invite(self) -> str:
-        invitation = await create_invitation.asyncio(
-            client=self.client, json_body=CreateInvitationRequest()
+        invitation = await self.controller.post(
+            "/out-of-band/create-invitation",
+            json={
+                "accept": ["didcomm/aip1", "didcomm/aip2;env=rfc19"],
+                "handshake_protocols": [
+                    "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/didexchange/1.0",
+                    "https://didcomm.org/didexchange/1.0",
+                ],
+                "protocol_version": "1.1",
+            },
+            response=InvitationRecord,
         )
-        if not invitation:
-            raise RuntimeError("Failed to retrieve invitation from mediator")
-        assert not isinstance(invitation.invitation_url, Unset)
         return invitation.invitation_url
 
-    async def get_connection(self, connection_id: str):
-        conn = await get_connection.asyncio(connection_id, client=self.client)
-        assert conn
-        return conn
-
-    async def get_connection_state(self, connection_id: str) -> str:
-        conn = await self.get_connection(connection_id)
-        assert isinstance(conn.state, str)
-        return conn.state
-
-    async def await_connection_state(self, connection_id: str, state: str):
-        return await poll(
-            partial(self.get_connection, connection_id),
-            lambda conn: isinstance(conn.state, str)
-            and self.conn_states_order[conn.state] >= self.conn_states_order[state],
-        )
-
     async def receive_invitation(self, invite: dict) -> ConnRecord:
-        conn_record = await receive_invitation.asyncio(
-            client=self.client,
-            json_body=ReceiveInvitationRequest.from_dict(invite),
-            auto_accept="true",
+        oob_record = await self.controller.post(
+            "/out-of-band/receive-invitation",
+            json=invite,
+            params={"auto_accept": "true"},
         )
 
-        assert conn_record
-        assert isinstance(conn_record.connection_id, str)
-        connection_id: str = conn_record.connection_id
-
-        if not conn_record:
-            raise RuntimeError("Failed to receive invitation on agent")
-
-        conn_record = await self.await_connection_state(connection_id, "response")
-        if conn_record.state == "response":
-            await post_connections_conn_id_send_ping.asyncio(
-                client=self.client, conn_id=connection_id, json_body=PingRequest()
-            )
-            conn_record = await self.await_connection_state(connection_id, "active")
-
+        conn_record = await self.controller.record_with_values(
+            "connections",
+            record_type=ConnRecord,
+            invitation_msg_id=oob_record["invi_msg_id"],
+            rfc23_state="completed",
+        )
         return conn_record
 
-    @poller(until=lambda rec: rec.state == "granted")
-    async def _granted_mediation(self, mediation_id: str) -> MediationRecord:
-        mediation_record = await get_mediation_requests_mediation_id.asyncio(
-            mediation_id, client=self.client
+    async def request_mediation(self, conn_id: str):
+        await self.controller.post(
+            f"/mediation/request/{conn_id}",
         )
-        assert mediation_record
+        mediation_record = await self.controller.record_with_values(
+            "mediation",
+            record_type=MediationRecord,
+            state="granted",
+        )
         return mediation_record
 
-    async def request_mediation(self, conn_id: str):
-        mediation_record = await post_mediation_request_conn_id.asyncio(
-            conn_id=conn_id, client=self.client, json_body=MediationCreateRequest()
-        )
-        if not mediation_record:
-            raise RuntimeError(f"Failed to request mediation from {conn_id}")
-        assert isinstance(mediation_record.mediation_id, str)
-        return await self._granted_mediation(mediation_record.mediation_id)
-
     async def set_default_mediator(self, mediation_id: str):
-        result = await put_mediation_mediation_id_default_mediator.asyncio(
-            mediation_id, client=self.client
+        result = await self.controller.put(
+            f"/mediation/{mediation_id}/default-mediator",
         )
-        if not result:
-            raise RuntimeError(f"Failed to set default mediator to {mediation_id}")
         return result
 
 
 async def main():
-    async with AsyncClient(base_url=PROXY, timeout=60.0) as client:
+    async with AsyncClient(base_url=PROXY, timeout=60.0) as client, Controller(
+        AGENT, headers=json.loads(AGENT_HEADERS)
+    ) as controller:
         proxy = Proxy(client)
         await proxy.initialized()
         state = await proxy.get_status()
@@ -244,11 +202,9 @@ async def main():
         else:
             print(f"Proxy state: {state}")
 
-        agent = Acapy(Client(base_url=AGENT, timeout=5.0, headers=json.loads(AGENT_HEADERS)))
-
         if MEDIATOR and not MEDIATOR_INVITE:
-            mediator = Acapy(Client(base_url=MEDIATOR, timeout=5.0))
-            mediator_invite = await mediator.get_invite()
+            async with Controller(MEDIATOR) as mediator:
+                mediator_invite = await Acapy(mediator).get_invite()
         elif MEDIATOR_INVITE:
             mediator_invite = MEDIATOR_INVITE
         else:
@@ -260,6 +216,7 @@ async def main():
         print("Proxy and mediator are now connected.")
 
         invite = await proxy.get_invite()
+        agent = Acapy(controller)
         conn_record = await agent.receive_invitation(invite)
 
         print("Proxy and agent are now connected.")

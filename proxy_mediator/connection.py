@@ -82,6 +82,8 @@ class Connection(AsaPyConn):
 
 
 class ConnectionMachine(StateMachine):
+    """State machine modeling the connection protocol."""
+
     null = State("null", initial=True)
     invite_sent = State("invite_sent")
     invite_received = State("invited")
@@ -100,5 +102,7 @@ class ConnectionMachine(StateMachine):
     receive_response = request_sent.to(response_received)
     send_ping = response_received.to(complete) | complete.to.itself()
     receive_ping = response_sent.to(complete) | complete.to.itself()
+    send_complete = response_received.to(complete) | complete.to.itself()
+    receive_complete = response_sent.to(complete) | complete.to.itself()
     send_ping_response = complete.to.itself()
     receive_ping_response = complete.to.itself()
