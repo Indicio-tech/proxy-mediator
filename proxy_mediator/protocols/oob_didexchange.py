@@ -243,7 +243,12 @@ class OobDidExchange(Connections):
         complete = Message.parse_obj(
             {
                 "@type": self.type("complete"),
-                "~thread": {"thid": msg.thread["thid"], "pthid": msg.thread["pthid"]},
+                "~thread": {
+                    "thid": msg.thread["thid"],
+                    "pthid": msg.thread["pthid"]
+                    if "pthid" in msg.thread
+                    else msg.thread["thid"],
+                },
             }
         )
         LOGGER.debug("Sending ping: %s", complete.pretty_print())
