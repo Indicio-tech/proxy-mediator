@@ -6,7 +6,6 @@ from typing import Any, Dict, Optional
 import uuid
 
 from aries_staticagent import Message, ModuleRouter, Target, crypto
-from base58 import b58encode
 from multiformats import multibase, multicodec
 
 from ..connection import Connection, ConnectionMachine
@@ -24,6 +23,15 @@ def verkey_to_didkey(verkey: bytes) -> str:
     return "did:key:" + multibase.encode(
         multicodec.wrap("ed25519-pub", verkey), "base58btc"
     )
+
+
+def didkey_to_verkey(didkey: str) -> bytes:
+    """Convert didkey to verkey."""
+    codec, unwrapped = multicodec.unwrap(multibase.decode(didkey[8:]))
+    if codec.name != "ed25519-pub":
+        raise ProtocolError(f"Unsupported did:key: {codec.name}")
+
+    return unwrapped
 
 
 class OobDidExchange(Connections):
@@ -123,18 +131,17 @@ class OobDidExchange(Connections):
     async def receive_invite_url(self, invite: str, **kwargs):
         """Process an invitation from a URL."""
         invite_msg = Message.parse_obj(b64_to_dict(invite.split("oob=", 1)[1]))
-        return await self.receive_invitation(invite_msg, **kwargs)
+        return await self.receive_invite(invite_msg, **kwargs)
 
-    async def receive_invitation(
-        self, invite: Message, *, endpoint: Optional[str] = None
-    ):
+    async def receive_invite(self, invite: Message, *, endpoint: Optional[str] = None):
         LOGGER.debug("Received invitation: %s", invite.pretty_print())
-        invitation_key = invite["services"][0]["recipientKeys"][0]
+        service = invite["services"][0]
+        invitation_key = service["recipientKeys"][0]
         new_connection = self.new_connection(
             invitation_key=invitation_key,
             target=Target(
-                their_vk=invite["recipientKeys"][0],
-                endpoint=invite["serviceEndpoint"],
+                their_vk=didkey_to_verkey(service["recipientKeys"][0]),
+                endpoint=service["serviceEndpoint"],
             ),
         )
         ConnectionMachine(new_connection).receive_invite()
@@ -218,7 +225,8 @@ class OobDidExchange(Connections):
             raise ProtocolError("Invalid signature on DID Doc")
 
         doc = b64_to_dict(msg["did_doc~attach"]["data"]["base64"])
-        if not b58encode(signer).decode() == conn.invitation_key:
+        assert conn.invitation_key
+        if not signer == didkey_to_verkey(conn.invitation_key):
             raise ProtocolError("Connection response not signed by invitation key")
 
         LOGGER.debug("Attached DID Doc: %s", json.dumps(doc, indent=2))

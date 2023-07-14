@@ -14,7 +14,12 @@ import json
 from os import getenv
 
 from controller.controller import Controller
-from controller.models import ConnRecord, InvitationResult, MediationRecord
+from controller.models import (
+    ConnRecord,
+    InvitationRecord,
+    InvitationResult,
+    MediationRecord,
+)
 from controller.logging import logging_to_stdout
 from httpx import AsyncClient
 import pytest
@@ -39,9 +44,17 @@ async def get_proxy_invite() -> dict:
 
 async def get_mediator_invite(external_mediator: Controller) -> str:
     invitation = await external_mediator.post(
-        "/connections/create-invitation",
+        "/out-of-band/create-invitation",
+        json={
+            "accept": ["didcomm/aip1", "didcomm/aip2;env=rfc19"],
+            "handshake_protocols": [
+                "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/didexchange/1.0",
+                "https://didcomm.org/didexchange/1.0",
+            ],
+            "protocol_version": "1.1",
+        },
         params={"auto_accept": "true"},
-        response=InvitationResult,
+        response=InvitationRecord,
     )
     return invitation.invitation_url
 
