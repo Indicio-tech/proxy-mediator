@@ -1,87 +1,73 @@
-from functools import partial
 from os import getenv
 
-from acapy_client import Client
-from acapy_client.api.connection import (
-    create_invitation,
-    get_connection,
-    receive_invitation,
-    get_connections_conn_id_endpoints,
-)
-from acapy_client.models.conn_record import ConnRecord
-from acapy_client.models.create_invitation_request import CreateInvitationRequest
-from acapy_client.models.receive_invitation_request import ReceiveInvitationRequest
-from acapy_client.types import Unset
 import pytest
-
-from . import record_state
-
-
-@pytest.fixture(scope="session")
-def agent_alice():
-    AGENT_ALICE = getenv("AGENT_ALICE", "http://agent_alice:4011")
-    return Client(base_url=AGENT_ALICE)
+import pytest_asyncio
+from controller.controller import Controller
+from controller.models import EndpointsResult, InvitationResult, ConnRecord
 
 
-@pytest.fixture(scope="session")
-def agent_bob():
-    AGENT_BOB = getenv("AGENT_BOB", "http://agent_bob:4012")
-    return Client(base_url=AGENT_BOB)
+@pytest_asyncio.fixture(scope="session")
+async def agent_alice():
+    AGENT_ALICE = getenv("AGENT_ALICE", "http://agent_alice:3001")
+    async with Controller(AGENT_ALICE) as controller:
+        yield controller
 
 
-@pytest.fixture
-async def create_connection():
-    """Factory fixture to create a connection with
-    sender and receiver as parameters"""
-
-    async def _create_connection(sender: Client, receiver: Client):
-        invite = await create_invitation.asyncio(
-            client=sender,
-            json_body=CreateInvitationRequest(),
-            auto_accept=True,
-        )
-        assert invite
-        assert not isinstance(invite.invitation, Unset)
-        connection = await receive_invitation.asyncio(
-            client=receiver,
-            json_body=ReceiveInvitationRequest.from_dict(invite.invitation.to_dict()),
-            auto_accept=True,
-        )
-        return (invite, connection)
-
-    yield _create_connection
+@pytest_asyncio.fixture(scope="session")
+async def agent_bob():
+    AGENT_BOB = getenv("AGENT_BOB", "http://agent_bob:3001")
+    async with Controller(AGENT_BOB) as controller:
+        yield controller
 
 
 agents = [
-    ("agent_alice", "agent_bob", "http://agent_alice:4011"),
+    ("agent_alice", "agent_bob", "http://agent_alice:3000"),
     ("agent_bob", "agent_alice", "http://reverse-proxy"),
 ]
 
 
-@pytest.mark.parametrize("sender, receiver, endpoint", agents)
+@pytest.mark.parametrize("sender_name, receiver_name, endpoint", agents)
 @pytest.mark.asyncio
 async def test_connection_from_alice(
-    sender, receiver, endpoint, create_connection, request
+    sender_name: str,
+    receiver_name: str,
+    endpoint: str,
+    agent_alice: Controller,
+    agent_bob: Controller,
 ):
-    sender = request.getfixturevalue(sender)
-    receiver = request.getfixturevalue(receiver)
-    invite, connection = await create_connection(sender, receiver)
+    agents = {
+        "agent_alice": agent_alice,
+        "agent_bob": agent_bob,
+    }
+    sender: Controller = agents[sender_name]
+    receiver: Controller = agents[receiver_name]
+    invite = await sender.post(
+        "/connections/create-invitation",
+        json={},
+        params={"auto_accept": "true"},
+        response=InvitationResult,
+    )
+    assert invite
+    connection = await receiver.post(
+        "/connections/receive-invitation",
+        json=invite.invitation,
+        params={"auto_accept": "true"},
+        response=ConnRecord,
+    )
+
     assert invite.invitation.service_endpoint == endpoint
 
-    async def _retrieve(client: Client, connection_id: str) -> ConnRecord:
-        retrieved = await get_connection.asyncio(
-            conn_id=connection_id,
-            client=client,
-        )
-        assert retrieved
-        return retrieved
+    await sender.record_with_values(
+        "connections",
+        connection_id=invite.connection_id,
+        state="active",
+    )
+    await receiver.record_with_values(
+        "connections", connection_id=connection.connection_id, state="active"
+    )
 
-    await record_state("active", partial(_retrieve, sender, invite.connection_id))
-    await record_state("active", partial(_retrieve, receiver, connection.connection_id))
-
-    endpoint_retrieved = await get_connections_conn_id_endpoints.asyncio(
-        conn_id=connection.connection_id,
-        client=receiver,
+    endpoint_retrieved = await receiver.get(
+        f"/connections/{connection.connection_id}/endpoints", response=EndpointsResult
     )
     assert endpoint_retrieved
     assert endpoint_retrieved.their_endpoint == endpoint

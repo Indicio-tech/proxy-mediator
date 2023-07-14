@@ -207,7 +207,7 @@ async def main():
         else:
             agent.state = "setup"
             # Connect to agent by creating invite and awaiting connection completion
-            agent_connection, invite = did_exchange.create_invitation()
+            agent_connection, invite = connections.create_invitation()
             agent.agent_invitation = invite
             print("Invitation URL:", invite, flush=True)
             agent_connection = await agent_connection.completion()
