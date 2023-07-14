@@ -7,22 +7,22 @@ from controller.models import EndpointsResult, InvitationResult, ConnRecord
 
 
 @pytest_asyncio.fixture(scope="session")
-async def agent_alice():
-    AGENT_ALICE = getenv("AGENT_ALICE", "http://agent_alice:3001")
-    async with Controller(AGENT_ALICE) as controller:
+async def alice():
+    ALICE = getenv("ALICE", "http://alice:3001")
+    async with Controller(ALICE) as controller:
         yield controller
 
 
 @pytest_asyncio.fixture(scope="session")
-async def agent_bob():
-    AGENT_BOB = getenv("AGENT_BOB", "http://agent_bob:3001")
-    async with Controller(AGENT_BOB) as controller:
+async def bob():
+    BOB = getenv("BOB", "http://bob:3001")
+    async with Controller(BOB) as controller:
         yield controller
 
 
 agents = [
-    ("agent_alice", "agent_bob", "http://agent_alice:3000"),
-    ("agent_bob", "agent_alice", "http://reverse-proxy"),
+    ("alice", "bob", "http://alice:3000"),
+    ("bob", "alice", "http://reverse-proxy"),
 ]
 
 
@@ -32,12 +32,12 @@ async def test_connection_from_alice(
     sender_name: str,
     receiver_name: str,
     endpoint: str,
-    agent_alice: Controller,
-    agent_bob: Controller,
+    alice: Controller,
+    bob: Controller,
 ):
     agents = {
-        "agent_alice": agent_alice,
-        "agent_bob": agent_bob,
+        "alice": alice,
+        "bob": bob,
     }
     sender: Controller = agents[sender_name]
     receiver: Controller = agents[receiver_name]

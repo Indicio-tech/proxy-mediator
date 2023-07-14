@@ -19,13 +19,13 @@ services:
       timeout: 5s
       retries: 5
 
-  agent_alice:
+  alice:
     image: ghcr.io/hyperledger/aries-cloudagent-python:py3.6-indy-1.16.0-0.8.2
     command: >
-      start --label agent_alice
+      start --label alice
       -it http 0.0.0.0 3000
       -ot http
-      -e http://agent_alice:3000
+      -e http://alice:3000
       --no-ledger
       --admin 0.0.0.0 3001
       --admin-insecure-mode
@@ -44,13 +44,13 @@ services:
       retries: 5
 
 
-  agent_bob:
+  bob:
     image: ghcr.io/hyperledger/aries-cloudagent-python:py3.6-indy-1.16.0-0.8.2
     command: >
-      start --label agent_bob
+      start --label bob
       -it http 0.0.0.0 3000
       -ot http
-      -e http://agent_bob:3000
+      -e http://bob:3000
       --no-ledger
       --admin 0.0.0.0 3001
       --admin-insecure-mode
@@ -116,15 +116,15 @@ services:
       dockerfile: ./Dockerfile.test.runner
     environment:
       - PROXY=http://proxy:3000
-      - AGENT_ALICE=http://agent_alice:3001
-      - AGENT_BOB=http://agent_bob:3001
+      - ALICE=http://alice:3001
+      - BOB=http://bob:3001
       - EXTERNAL_MEDIATOR=http://external_mediator:3001
     depends_on:
       proxy:
         condition: service_healthy
-      agent_alice:
+      alice:
         condition: service_healthy
-      agent_bob:
+      bob:
         condition: service_healthy
       external_mediator:
         condition: service_healthy

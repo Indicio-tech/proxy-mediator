@@ -171,7 +171,7 @@ class OobDidExchange(Connections):
             self.connections.pop(invite_connection.verkey_b58)
 
         verified, signer = self.verify_signed_attachment(msg["did_doc~attach"])
-        if verified:
+        if not verified:
             raise ProtocolError("Invalid signature on DID Doc")
 
         doc = b64_to_dict(msg["did_doc~attach"]["data"]["base64"])
@@ -193,11 +193,11 @@ class OobDidExchange(Connections):
         response = Message.parse_obj(
             {
                 "@type": self.type("response"),
-                "~thread": {"thid": msg.id, "sender_order": 0},
+                "~thread": {"thid": msg.id, "pthid": msg.thread["pthid"]},
                 "did": connection.did,
                 "did_doc~attach": self.signed_attachment(
-                    connection.verkey,
-                    connection.sigkey,
+                    invite_connection.verkey,
+                    invite_connection.sigkey,
                     self.doc_for_connection(connection),
                 ),
             },
@@ -206,6 +206,8 @@ class OobDidExchange(Connections):
         await connection.send_async(response)
         connection.complete()
 
+    @route
+    @route(doc_uri=DIDCOMM_OLD)
     async def response(self, msg: Message, conn: Connection):
         """Process a response."""
         LOGGER.debug("Received response: %s", msg.pretty_print())
@@ -233,13 +235,15 @@ class OobDidExchange(Connections):
         complete = Message.parse_obj(
             {
                 "@type": self.type("complete"),
-                "~thread": {"thid": msg["~thread"]["thid"], "pthid": msg["@id"]},
+                "~thread": {"thid": msg.thread["thid"], "pthid": msg.thread["pthid"]},
             }
         )
         LOGGER.debug("Sending ping: %s", complete.pretty_print())
         ConnectionMachine(conn).send_complete()
         await conn.send_async(complete, return_route="all")
 
+    @route
+    @route(doc_uri=DIDCOMM_OLD)
     async def complete(self, msg: Message, conn: Connection):
         """Receive a complete message."""
         LOGGER.debug("Received complete: %s", msg.pretty_print())
