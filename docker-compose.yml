@@ -3,7 +3,7 @@ services:
 
  # DB Service
   db:
-    image: postgres:9.5
+    image: postgres:14.3
     hostname: db
     restart: unless-stopped
     environment:
