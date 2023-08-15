@@ -11,8 +11,8 @@ async def poll_until_condition(
     retrieve: Callable[[], Awaitable[Subject]],
     *,
     initial: Optional[Subject] = None,
-    timeout: float = 7.5,
-    interval: float = 2.0
+    timeout: float = 5.0,
+    interval: float = 1.0
 ) -> Subject:
     async def _timeboxed(subject: Subject):
         while not condition(subject):
