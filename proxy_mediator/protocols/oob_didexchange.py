@@ -18,6 +18,11 @@ from .constants import DIDCOMM, DIDCOMM_OLD
 LOGGER = logging.getLogger(__name__)
 
 
+def verkey_b58_to_didkey(verkey: str) -> str:
+    """Convert verkey as b58 str to did key."""
+    return verkey_to_didkey(crypto.b58_to_bytes(verkey))
+
+
 def verkey_to_didkey(verkey: bytes) -> str:
     """Convert verkey to didkey."""
     return "did:key:" + multibase.encode(
