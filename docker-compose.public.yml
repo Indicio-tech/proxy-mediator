@@ -15,7 +15,7 @@ services:
       LOG_LEVEL: DEBUG
 
   agent:
-    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-0.9.0
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-0.10.1
     volumes:
       - indy:/home/indy/.indy_client
     command: >
@@ -38,7 +38,7 @@ services:
       - WAIT_HOST_CONNECT_TIMEOUT=10
       - PROXY=http://proxy:3000
       - AGENT=http://agent:3001
-      - MEDIATOR_INVITE=https://g6stx4sj2h.execute-api.us-east-1.amazonaws.com/Prod/message?oob=eyJAaWQiOiI5M2Q2ZGU4MS00MzVlLTRmMGQtYWZiMS0xZWVkNTY5YTM1NzIiLCJAdHlwZSI6Imh0dHBzOi8vZGlkY29tbS5vcmcvb3V0LW9mLWJhbmQvMS4xL2ludml0YXRpb24iLCJoYW5kc2hha2VfcHJvdG9jb2xzIjpbImh0dHBzOi8vZGlkY29tbS5vcmcvZGlkZXhjaGFuZ2UvMS4wIl0sInNlcnZpY2VzIjpbeyJpZCI6IiNpbmxpbmUiLCJ0eXBlIjoiZGlkLWNvbW11bmljYXRpb24iLCJyZWNpcGllbnRLZXlzIjpbImRpZDprZXk6ejZNa280WFl5c3l5dHZZM3hiaEY1UWE3WndGcXVHUldwUXp0Z0ZxQm40TnNnc05aIl0sInNlcnZpY2VFbmRwb2ludCI6Imh0dHBzOi8vZzZzdHg0c2oyaC5leGVjdXRlLWFwaS51cy1lYXN0LTEuYW1hem9uYXdzLmNvbS9Qcm9kL21lc3NhZ2UifSx7ImlkIjoiI2lubGluZSIsInR5cGUiOiJkaWQtY29tbXVuaWNhdGlvbiIsInJlY2lwaWVudEtleXMiOlsiZGlkOmtleTp6Nk1rbzRYWXlzeXl0dlkzeGJoRjVRYTdad0ZxdUdSV3BRenRnRnFCbjROc2dzTloiXSwic2VydmljZUVuZHBvaW50Ijoid3M6Ly9kZG0tMjAyNTM3MjYyMC51cy1lYXN0LTEuZWxiLmFtYXpvbmF3cy5jb20vd3MifV0sImFjY2VwdCI6WyJkaWRjb21tL2FpcDEiLCJkaWRjb21tL2FpcDI7ZW52PXJmYzE5Il0sImxhYmVsIjoiQ2xvdWQgTWVkaWF0b3IifQ==
+      - MEDIATOR_INVITE=https://mediator4.test.indiciotech.io/?c_i=eyJAdHlwZSI6ICJkaWQ6c292OkJ6Q2JzTlloTXJqSGlxWkRUVUFTSGc7c3BlYy9jb25uZWN0aW9ucy8xLjAvaW52aXRhdGlvbiIsICJAaWQiOiAiNjdlMWIyYjctZDkwZi00YjBhLTk3OTEtNDkzNjVmNmQ4MDNjIiwgImxhYmVsIjogIkluZGljaW8gTWVkaWF0b3IiLCAicmVjaXBpZW50S2V5cyI6IFsiNlY3SHFKR3hEdTJFM2JFbndWc2F6TEJ1MTRBaXNyNndadVQzSHBnUkVlb2MiXSwgInNlcnZpY2VFbmRwb2ludCI6ICJodHRwczovL21lZGlhdG9yNC50ZXN0LmluZGljaW90ZWNoLmlvOjQ0MyJ9
     depends_on:
       - proxy
       - agent
