@@ -1,3 +1,4 @@
+"""Coordinate mediation protocol."""
 import asyncio
 from contextvars import ContextVar
 import logging
@@ -33,7 +34,9 @@ class UnexpectedMediationGrant(MediationError):
 
 
 class ExternalMediationNotEstablished(MediationError):
-    """Raised when a mediation request is received before mediation with
+    """Raised when a mediation request comes out of order.
+
+    Specifically, when the mediation request is received before mediation with
     external mediator is established.
     """
 
@@ -41,17 +44,23 @@ class ExternalMediationNotEstablished(MediationError):
 
 
 class MediationRequest:
+    """Mediation request."""
+
     def __init__(self, connection: Connection):
+        """Initialize a mediation request."""
         self.connection = connection
         self._event = asyncio.Event()
 
     async def completed(self):
+        """Wait for mediation request to be completed."""
         await self._event.wait()
 
     def complete(self):
+        """Mark mediation request as complete."""
         self._event.set()
 
     def is_complete(self):
+        """Return whether mediation request is complete."""
         return self._event.is_set()
 
 
@@ -59,18 +68,23 @@ VAR: ContextVar["CoordinateMediation"] = ContextVar("coordinate_mediation")
 
 
 class CoordinateMediation(Module):
+    """Coordinate mediation module."""
+
     protocol = f"{DIDCOMM_OLD}coordinate-mediation/1.0"
     route = ModuleRouter(protocol)
 
     @classmethod
     def get(cls) -> "CoordinateMediation":
+        """Return context var for coordinate mediation module."""
         return VAR.get()
 
     @classmethod
     def set(cls, value: "CoordinateMediation"):
+        """Set context var for coordinate mediation module."""
         VAR.set(value)
 
     def __init__(self):
+        """Initialize a coordinate mediation module."""
         super().__init__()
         self.external_mediator_endpoint: Optional[str] = None
         self.external_mediator_routing_keys: Optional[List[str]] = None

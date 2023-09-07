@@ -33,6 +33,8 @@ class ProblemReportDescription(BaseModel):
     en: Optional[str]
 
     class Config:
+        """Config for description."""
+
         extra = Extra.allow
 
 
@@ -43,10 +45,13 @@ class ProblemReport(BaseMessage):
     description: ProblemReportDescription
 
     class Config:
+        """Config for problem report."""
+
         extra = Extra.allow
 
     @classmethod
     def with_description(cls, **kwargs):
+        """Create a problem report with a description."""
         return cls(description=ProblemReportDescription(**kwargs))
 
 

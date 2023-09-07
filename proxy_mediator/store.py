@@ -1,3 +1,4 @@
+"""Helper for working with Askar store."""
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 import logging
@@ -52,14 +53,17 @@ class Store:
         )
 
     async def close(self):
+        """Close the store."""
         if self.store:
             await self.store.close()
         self.store = None
 
     async def __aenter__(self):
+        """Open store."""
         await self.open()
 
     async def __aexit__(self, type, value, tb):
+        """Close store."""
         await self.close()
         return False
 
