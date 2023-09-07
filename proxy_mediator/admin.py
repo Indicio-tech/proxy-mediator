@@ -1,3 +1,5 @@
+"""Admin routes."""
+
 import logging
 
 from aiohttp import web
@@ -8,6 +10,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 def register_routes(app: web.Application):
+    """Register admin routes."""
+
     agent = Agent.get()
 
     async def retrieve_agent_invitation(request):

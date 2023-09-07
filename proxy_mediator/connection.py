@@ -13,6 +13,7 @@ class Connection(AsaPyConn):
     """Wrapper around Static Agent library connection to provide state."""
 
     def __init__(self, *args, **kwargs):
+        """Initialize a connection."""
         super().__init__(*args, **kwargs)
         self.state: str = "null"
         self._completed: Future = asyncio.get_event_loop().create_future()
@@ -22,10 +23,11 @@ class Connection(AsaPyConn):
 
     @property
     def is_completed(self):
+        """Return whether this connection is complete."""
         return self._completed.done()
 
     def complete(self):
-        """Complete this connection"""
+        """Complete this connection."""
         self._completed.set_result(self)
 
     async def completion(self) -> "Connection":
@@ -67,7 +69,7 @@ class Connection(AsaPyConn):
 
     @classmethod
     def from_store(cls, value: dict, **kwargs) -> "Connection":
-        """Convert JSON object into Connection object"""
+        """Convert JSON object into Connection object."""
         conn = cls.from_parts(
             (value["verkey"], value["sigkey"]),
             recipients=value.get("target", {}).get("recipients"),

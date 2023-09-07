@@ -43,6 +43,8 @@ class ForwardFromUnauthorizedConnection(ForwardError):
 
 
 class Forward(BaseMessage):
+    """Forward message."""
+
     msg_type = f"{DIDCOMM_OLD}routing/1.0/forward"
     to: str
     msg: Dict[str, Any]
@@ -57,6 +59,8 @@ class Forward(BaseMessage):
 
 
 class Routing(Module):
+    """Routing module."""
+
     protocol = f"{DIDCOMM_OLD}routing/1.0"
     route = ModuleRouter(protocol)
 

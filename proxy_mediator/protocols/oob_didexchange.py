@@ -139,6 +139,7 @@ class OobDidExchange(Connections):
         return await self.receive_invite(invite_msg, **kwargs)
 
     async def receive_invite(self, invite: Message, *, endpoint: Optional[str] = None):
+        """Process an invitation."""
         LOGGER.debug("Received invitation: %s", invite.pretty_print())
         service = invite["services"][0]
         invitation_key = service["recipientKeys"][0]
@@ -175,6 +176,7 @@ class OobDidExchange(Connections):
     @route
     @route(doc_uri=DIDCOMM_OLD)
     async def request(self, msg: Message, invite_connection: Connection):
+        """Handle a request."""
         LOGGER.debug("Received request: %s", msg.pretty_print())
         assert msg.mtc.recipient
 

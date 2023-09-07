@@ -1,5 +1,6 @@
-""" Connections protocol from Aries RFC 0160
-    https://github.com/hyperledger/aries-rfcs/blob/main/features/0160-connection-protocol
+"""Connections protocol from Aries RFC 0160.
+
+https://github.com/hyperledger/aries-rfcs/blob/main/features/0160-connection-protocol.
 """
 
 from base64 import urlsafe_b64decode
@@ -23,17 +24,19 @@ VAR: ContextVar["Connections"] = ContextVar("connections")
 
 
 class Connections(Module):
-    """Module for Connection Protocol"""
+    """Module for Connection Protocol."""
 
     protocol = f"{DIDCOMM_OLD}connections/1.0"
     route = ModuleRouter(protocol)
 
     @classmethod
     def get(cls) -> "Connections":
+        """Get context var for connections."""
         return VAR.get()
 
     @classmethod
     def set(cls, value: "Connections"):
+        """Set context var for connections."""
         VAR.set(value)
 
     def __init__(
@@ -42,6 +45,7 @@ class Connections(Module):
         connections: MutableMapping[str, Connection] = None,
         endpoint=None,
     ):
+        """Initialize the Connections module."""
         super().__init__()
         self.dispatcher = dispatcher
         self.connections = connections if connections is not None else {}

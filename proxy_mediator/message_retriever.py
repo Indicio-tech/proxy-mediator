@@ -14,8 +14,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _determine_ws_endpoint(doc: dict) -> Optional[str]:
-    """
-    Determine which endpoint from a DID Document should be used as the WS endpoint.
+    """Determine which endpoint from a DID Document should be used as the WS endpoint.
 
     If no suitable endpoint is found, return None.
     """
@@ -35,14 +34,14 @@ def _determine_ws_endpoint(doc: dict) -> Optional[str]:
 
 
 class MessageRetriever:
-    """
-    Retrieve messages via websocket from a given connection.
+    """Retrieve messages via websocket from a given connection.
 
     This class opens a websocket connection, and periodically polls for messages
     using a trust ping with response requested set to false.
     """
 
     def __init__(self, conn: Connection, poll_interval: float = 5.0):
+        """Initialize the message retriever."""
         if not conn.diddoc:
             raise ValueError("Connection must have DID Doc for WS polling")
 
@@ -58,6 +57,7 @@ class MessageRetriever:
         self.ws_task: Optional[asyncio.Task] = None
 
     async def ws(self):
+        """Open websocket and handle messages."""
         LOGGER.debug("Starting websocket to %s", self.endpoint)
         async with aiohttp.ClientSession() as session:
             try:
@@ -86,6 +86,7 @@ class MessageRetriever:
         self.socket = None
 
     async def poll(self):
+        """Periodically send trust ping messages to the mediator."""
         ping = {
             "@type": "did:sov:BzCbsNYhMrjHiqZDTUASHg;spec/trust_ping/1.0/ping",
             "response_requested": False,
@@ -102,11 +103,13 @@ class MessageRetriever:
             await asyncio.sleep(self.poll_interval)
 
     async def start(self):
+        """Start the message retriever."""
         self.ws_task = asyncio.ensure_future(self.ws())
         await asyncio.sleep(1)
         await self.poll()
 
     async def stop(self):
+        """Stop the message retriever."""
         if self.socket:
             await self.socket.close()
         if self.poll_task:

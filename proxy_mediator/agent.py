@@ -1,6 +1,4 @@
-"""
-Proxy Mediator Agent.
-"""
+"""Proxy Mediator Agent."""
 import asyncio
 from contextvars import ContextVar
 import logging
@@ -22,7 +20,7 @@ class ConnectionNotFound(Exception):
 
 
 class Agent:
-    """Agent"""
+    """Agent."""
 
     @classmethod
     def get(cls):
@@ -40,6 +38,7 @@ class Agent:
         receive_invite_url: Callable,
         connections: MutableMapping[str, Connection] = None,
     ):
+        """Initialize an agent."""
         self.connections: MutableMapping[str, Connection] = (
             connections if connections is not None else {}
         )
@@ -57,6 +56,7 @@ class Agent:
         self.agent_invitation: Optional[str] = None
 
     def connections_for_message(self, packed_message: bytes) -> Iterable[Connection]:
+        """Get connections that are the intended recipients of a message."""
         recipients = recipients_from_packed_message(packed_message)
         connections = [
             self.connections[recip] for recip in recipients if recip in self.connections
