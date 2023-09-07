@@ -9,19 +9,19 @@ on:
   pull_request:
 
 env:
-  FLAKE8_VERSION: 5.0.4
-  BLACK_VERSION: 22.8.0
+  FLAKE8_VERSION: 6.0.0
+  BLACK_VERSION: 23.7.0
 
 jobs:
   format:
     name: Format and Lint Check
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up Python 3.6
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v3
         with:
-            python-version: 3.6
+            python-version: 3.9
       - name: Cache python environment
         id: cache-env
         uses: actions/cache@v2

@@ -15,7 +15,7 @@ services:
       LOG_LEVEL: DEBUG
 
   agent:
-    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.6-indy-1.16.0-0.8.2
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-0.10.1
     volumes:
       - indy:/home/indy/.indy_client
     command: >
@@ -23,7 +23,7 @@ services:
       --no-ledger --admin 0.0.0.0 3001 --admin-insecure-mode
       --debug-connections --auto-accept-invites --auto-accept-requests
       --auto-ping-connection --log-level debug
-      --wallet-type indy --wallet-name agent --wallet-key insecure --auto-provision
+      --wallet-type askar --wallet-name agent --wallet-key insecure --auto-provision
     ports:
       - 4001:3001
 

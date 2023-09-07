@@ -91,7 +91,6 @@ async def agent_request_mediation_from_proxy(bob: Controller, conn_id: str):
     )
     mediation_record = await bob.record_with_values(
         "mediation",
-        record_type=MediationRecord,
         state="granted",
     )
     return mediation_record
@@ -125,5 +124,5 @@ async def setup():
         mediation_record = await agent_request_mediation_from_proxy(
             bob, conn_record.connection_id
         )
-        assert mediation_record.mediation_id
-        await agent_set_default_mediator(bob, mediation_record.mediation_id)
+        assert mediation_record["mediation_id"]
+        await agent_set_default_mediator(bob, mediation_record["mediation_id"])

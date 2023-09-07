@@ -32,7 +32,7 @@ services:
     entrypoint: /bin/sh -c '/app/wait && python -m proxy_mediator "$$@"' --
 
   agent:
-    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.6-indy-1.16.0-0.8.2
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-0.10.1
     volumes:
       - indy:/home/indy/.indy_client
     command: >
@@ -40,7 +40,7 @@ services:
       --no-ledger --admin 0.0.0.0 3001 --admin-insecure-mode
       --debug-connections --auto-accept-invites --auto-accept-requests
       --auto-ping-connection --log-level debug
-      --wallet-type indy --wallet-name agent --wallet-key insecure --auto-provision
+      --wallet-type askar --wallet-name agent --wallet-key insecure --auto-provision
     ports:
       - 4001:3001
 
@@ -62,7 +62,7 @@ services:
       - mediator
 
   mediator:
-    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.6-indy-1.16.0-0.8.2
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-0.10.1
     volumes:
       - ./docker/acapy-endpoint.sh:/home/indy/acapy-endpoint.sh:z
       - indy:/home/indy/.indy_client
@@ -76,7 +76,7 @@ services:
       --no-ledger --admin 0.0.0.0 3001 --admin-insecure-mode
       --debug-connections --auto-accept-invites --auto-accept-requests
       --auto-ping-connection --log-level debug --open-mediation
-      --wallet-type indy --wallet-name mediator --wallet-key insecure --auto-provision
+      --wallet-type askar --wallet-name mediator --wallet-key insecure --auto-provision
 
   setup:
     build:

@@ -10,6 +10,7 @@ from ..agent import Agent
 from ..connection import Connection
 from ..error import ProtocolError, Reportable, problem_reporter
 from .constants import DIDCOMM, DIDCOMM_OLD
+from .oob_didexchange import verkey_b58_to_didkey, verkey_to_didkey
 
 
 LOGGER = logging.getLogger(__name__)
@@ -133,8 +134,13 @@ class CoordinateMediation(Module):
                 "@type": self.type("mediate-grant"),
                 "endpoint": self.external_mediator_endpoint,
                 "routing_keys": [
-                    agent.mediator_connection.verkey_b58,
-                    *self.external_mediator_routing_keys,
+                    verkey_to_didkey(agent.mediator_connection.verkey),
+                    *[
+                        verkey_b58_to_didkey(key)
+                        if not key.startswith("did:key:")
+                        else key
+                        for key in self.external_mediator_routing_keys
+                    ],
                 ],
             }
         )
