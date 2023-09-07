@@ -1,4 +1,4 @@
-"""Connections Protocol Starter Kit"""
+"""Connections Protocol Starter Kit."""
 import asyncio
 from contextlib import asynccontextmanager, suppress
 import logging
@@ -20,7 +20,7 @@ LOGGER = logging.getLogger("proxy_mediator")
 
 
 def config():
-    """Get config"""
+    """Get config."""
     parser = ArgumentParser(
         config_file_parser_class=YAMLConfigFileParser, prog="proxy_mediator"
     )
@@ -84,7 +84,7 @@ async def webserver(port: int, agent: Agent):
             await asyncio.sleep(3600)
 
     async def handle(request):
-        """aiohttp handle POST."""
+        """Aiohttp handle POST."""
         packed_message = await request.read()
         LOGGER.debug("Received packed message: %s", packed_message)
         try:

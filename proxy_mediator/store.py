@@ -82,7 +82,7 @@ class Store:
             yield session
 
     async def store_connection(self, session: Session, connection: Connection):
-        """Insert agent connection into store"""
+        """Insert agent connection into store."""
         value = connection.to_store().encode()
         LOGGER.debug("Saving connection: %s", value)
         try:
@@ -140,19 +140,19 @@ class Store:
                 raise
 
     async def retrieve_connections(self, session: Session) -> Sequence[Entry]:
-        """Retrieve mediation connection from store"""
+        """Retrieve mediation connection from store."""
         entries = list(await session.fetch_all(self.CATEGORY_CONNECTIONS))
         LOGGER.debug("Retrieve connections returning: %s", entries)
         return entries
 
     async def retrieve_agent(self, session: Session) -> Optional[str]:
-        """Retrieve mediation connection from store"""
+        """Retrieve mediation connection from store."""
         entry = await session.fetch(self.CATEGORY_IDENTIFIERS, self.IDENTIFIER_AGENT)
         LOGGER.debug("Retrieve agent returning: %s", entry.value if entry else None)
         return entry.value.decode("ascii") if entry else None
 
     async def retrieve_mediator(self, session: Session) -> Optional[str]:
-        """Retrieve mediation connection from store"""
+        """Retrieve mediation connection from store."""
         entry = await session.fetch(self.CATEGORY_IDENTIFIERS, self.IDENTIFIER_MEDIATOR)
         LOGGER.debug("Retrieve mediator returning: %s", entry.value if entry else None)
         return entry.value.decode("ascii") if entry else None

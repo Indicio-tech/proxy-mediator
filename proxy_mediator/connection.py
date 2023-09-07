@@ -25,7 +25,7 @@ class Connection(AsaPyConn):
         return self._completed.done()
 
     def complete(self):
-        """Complete this connection"""
+        """Complete this connection."""
         self._completed.set_result(self)
 
     async def completion(self) -> "Connection":
@@ -67,7 +67,7 @@ class Connection(AsaPyConn):
 
     @classmethod
     def from_store(cls, value: dict, **kwargs) -> "Connection":
-        """Convert JSON object into Connection object"""
+        """Convert JSON object into Connection object."""
         conn = cls.from_parts(
             (value["verkey"], value["sigkey"]),
             recipients=value.get("target", {}).get("recipients"),

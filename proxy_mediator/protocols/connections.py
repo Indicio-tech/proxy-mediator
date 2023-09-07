@@ -1,5 +1,5 @@
-""" Connections protocol from Aries RFC 0160
-    https://github.com/hyperledger/aries-rfcs/blob/main/features/0160-connection-protocol
+"""Connections protocol from Aries RFC 0160
+https://github.com/hyperledger/aries-rfcs/blob/main/features/0160-connection-protocol.
 """
 
 from base64 import urlsafe_b64decode
@@ -23,7 +23,7 @@ VAR: ContextVar["Connections"] = ContextVar("connections")
 
 
 class Connections(Module):
-    """Module for Connection Protocol"""
+    """Module for Connection Protocol."""
 
     protocol = f"{DIDCOMM_OLD}connections/1.0"
     route = ModuleRouter(protocol)

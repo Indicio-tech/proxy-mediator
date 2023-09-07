@@ -33,8 +33,7 @@ class UnexpectedMediationGrant(MediationError):
 
 
 class ExternalMediationNotEstablished(MediationError):
-    """
-    Raised when a mediation request is received before mediation with
+    """Raised when a mediation request is received before mediation with
     external mediator is established.
     """
 

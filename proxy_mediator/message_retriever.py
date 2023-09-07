@@ -14,8 +14,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _determine_ws_endpoint(doc: dict) -> Optional[str]:
-    """
-    Determine which endpoint from a DID Document should be used as the WS endpoint.
+    """Determine which endpoint from a DID Document should be used as the WS endpoint.
 
     If no suitable endpoint is found, return None.
     """
@@ -35,8 +34,7 @@ def _determine_ws_endpoint(doc: dict) -> Optional[str]:
 
 
 class MessageRetriever:
-    """
-    Retrieve messages via websocket from a given connection.
+    """Retrieve messages via websocket from a given connection.
 
     This class opens a websocket connection, and periodically polls for messages
     using a trust ping with response requested set to false.

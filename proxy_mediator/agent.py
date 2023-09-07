@@ -1,6 +1,4 @@
-"""
-Proxy Mediator Agent.
-"""
+"""Proxy Mediator Agent."""
 import asyncio
 from contextvars import ContextVar
 import logging
@@ -22,7 +20,7 @@ class ConnectionNotFound(Exception):
 
 
 class Agent:
-    """Agent"""
+    """Agent."""
 
     @classmethod
     def get(cls):
