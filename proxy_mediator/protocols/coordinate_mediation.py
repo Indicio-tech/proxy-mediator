@@ -2,7 +2,7 @@
 import asyncio
 from contextvars import ContextVar
 import logging
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from aries_staticagent.message import Message
 from aries_staticagent.module import Module, ModuleRouter
@@ -91,6 +91,13 @@ class CoordinateMediation(Module):
         self.external_pending_request: Optional[MediationRequest] = None
         self.agent_request_received: bool = False
 
+    def type_condition(self, message_name: str) -> Callable[[Message], bool]:
+        """Return a type condition for the given message name."""
+        return lambda msg: (
+            msg.type == self.type(message_name)
+            or msg.type == self.type(name=message_name, doc_uri=DIDCOMM_OLD)
+        )
+
     async def request_mediation_from_external(self, external_conn: Connection):
         """Request mediation from the external mediator."""
         LOGGER.debug("Requesting mediation from: %s", external_conn)
@@ -118,7 +125,7 @@ class CoordinateMediation(Module):
         )
         LOGGER.debug("Sending keylist update: %s", update.pretty_print())
         response = await external_conn.send_and_await_returned_async(
-            update, type_=self.type("keylist-update-response")
+            update, condition=self.type_condition("keylist-update-response")
         )
         # TODO Process response and check for failures
         LOGGER.debug("Received keylist update response: %s", response.pretty_print())
