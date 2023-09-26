@@ -1,11 +1,12 @@
-"""Automate setup of Proxy Mediator + Mediated Agent:
+"""Automate setup of Proxy Mediator + Mediated Agent.
 
-1. Retrive invitation from mediator
-2. Receive invitation in proxy
-3. Retrieve invitation from proxy
-4. Deliver to agent through Admin API
-5. Request mediation from proxy
-6. Set proxy as default mediator
+Steps:
+    1. Retrive invitation from mediator
+    2. Receive invitation in proxy
+    3. Retrieve invitation from proxy
+    4. Deliver to agent through Admin API
+    5. Request mediation from proxy
+    6. Set proxy as default mediator
 """
 
 import asyncio
@@ -18,7 +19,7 @@ from typing import Any, Awaitable, Callable, Optional, TypeVar, cast
 from httpx import AsyncClient
 
 from controller.controller import Controller
-from controller.models import InvitationRecord, ConnRecord, MediationRecord
+from controller.models import InvitationRecord, ConnRecord
 
 PROXY = getenv("PROXY", "http://localhost:3000")
 AGENT = getenv("AGENT", "http://localhost:3001")
@@ -177,10 +178,9 @@ class Acapy:
         )
         mediation_record = await self.controller.record_with_values(
             "mediation",
-            record_type=MediationRecord,
             state="granted",
         )
-        return mediation_record
+        return mediation_record.get("mediation_id")
 
     async def set_default_mediator(self, mediation_id: str):
         result = await self.controller.put(
@@ -223,13 +223,14 @@ async def main():
         print(f"Proxy connection id: {conn_record.connection_id}")
 
         assert isinstance(conn_record.connection_id, str)
-        mediation_record = await agent.request_mediation(conn_record.connection_id)
+        mediation_id = await agent.request_mediation(conn_record.connection_id)
         print("Proxy has granted mediation to agent.")
-        print(f"Proxy mediation id: {mediation_record.mediation_id}")
+        print(f"Proxy mediation id: {mediation_id}")
 
-        assert mediation_record
-        assert isinstance(mediation_record.mediation_id, str)
-        await agent.set_default_mediator(mediation_record.mediation_id)
+        if not mediation_id:
+            raise RuntimeError("Failed to request mediation")
+
+        await agent.set_default_mediator(mediation_id)
         print("Proxy mediator is now default mediator for agent.")
 
 
