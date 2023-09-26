@@ -6,6 +6,7 @@ from typing import Callable, Iterable, MutableMapping, Optional
 
 from aries_staticagent.crypto import recipients_from_packed_message
 from aries_staticagent.dispatcher.base import Dispatcher
+from aries_staticagent.dispatcher.handler_dispatcher import NoRegisteredHandlerException
 
 from .connection import Connection
 from .store import Store
@@ -81,7 +82,10 @@ class Agent:
                 msg = conn.unpack(packed_message)
                 if session:
                     session.update_thread_from_msg(msg)
-                await self.dispatcher.dispatch(msg, conn)
+                try:
+                    await self.dispatcher.dispatch(msg, conn)
+                except NoRegisteredHandlerException:
+                    LOGGER.exception("Failed to dispatch message to handler")
 
         if response:
             return response.pop()
