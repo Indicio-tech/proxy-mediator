@@ -192,3 +192,9 @@ class CoordinateMediation(Module):
         )
         LOGGER.debug("Sending keylist update response: %s", response.pretty_print())
         await conn.send_async(response)
+
+    @route(name="keylist-update-response")
+    @route(doc_uri=DIDCOMM, name="keylist-update-response")
+    async def keylist_update_response(self, msg: Message, conn):
+        """Handle keylist update response message."""
+        LOGGER.debug("Received keylist update response message: %s", msg.pretty_print())
