@@ -95,7 +95,7 @@ class CoordinateMediation(Module):
         """Return a type condition for the given message name."""
         return lambda msg: (
             msg.type == self.type(message_name)
-            or msg.type == self.type(name=message_name, doc_uri=DIDCOMM_OLD)
+            or msg.type == self.type(name=message_name, doc_uri=DIDCOMM)
         )
 
     async def request_mediation_from_external(self, external_conn: Connection):
