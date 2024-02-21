@@ -34,6 +34,7 @@ services:
       --auto-accept-requests
       --auto-ping-connection
       --log-level debug
+      --emit-did-peer-4
     ports:
       - 3001:3001
     healthcheck:
@@ -59,6 +60,7 @@ services:
       --auto-accept-requests
       --auto-ping-connection
       --log-level debug
+      --emit-did-peer-4
     ports:
       - 3002:3001
     healthcheck:
@@ -86,6 +88,7 @@ services:
       --log-level debug
       --open-mediation
       --enable-undelivered-queue
+      --emit-did-peer-4
     ports:
       - 3003:3002
     healthcheck:
