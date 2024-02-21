@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "proxy-mediator"
-version = "0.1.3"
+version = "0.1.4"
 description = "Mediator service used to enable cloud agents to run behind a firewall"
 authors = ["Daniel Bluhm <dbluhm@pm.me>", "Char Howland <char@indicio.tech>"]
 license = "Apache-2.0"
