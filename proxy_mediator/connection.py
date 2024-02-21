@@ -1,4 +1,5 @@
 """Connection object."""
+
 import asyncio
 from asyncio.futures import Future
 import json

@@ -119,9 +119,9 @@ class Connections(Module):
                     "type": "IndyAgent",
                     "recipientKeys": [connection.verkey_b58],
                     "routingKeys": [],
-                    "serviceEndpoint": endpoint
-                    if endpoint is not None
-                    else self.endpoint,
+                    "serviceEndpoint": (
+                        endpoint if endpoint is not None else self.endpoint
+                    ),
                 }
             ],
         }

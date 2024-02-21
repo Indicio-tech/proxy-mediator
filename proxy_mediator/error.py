@@ -1,6 +1,5 @@
 """Errors and error related utilities."""
 
-
 from abc import ABC
 import functools
 import logging

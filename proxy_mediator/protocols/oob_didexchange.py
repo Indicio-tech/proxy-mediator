@@ -257,9 +257,11 @@ class OobDidExchange(Connections):
                 "@type": self.type("complete"),
                 "~thread": {
                     "thid": msg.thread["thid"],
-                    "pthid": msg.thread["pthid"]
-                    if "pthid" in msg.thread
-                    else msg.thread["thid"],
+                    "pthid": (
+                        msg.thread["pthid"]
+                        if "pthid" in msg.thread
+                        else msg.thread["thid"]
+                    ),
                 },
             }
         )
