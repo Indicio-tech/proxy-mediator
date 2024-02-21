@@ -14,9 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: psf/black@stable
+      - uses: psf/black@24.1.1
         with:
           src: "./proxy_mediator"
       - uses: chartboost/ruff-action@v1
         with:
           src: "./proxy_mediator"
+          version: 0.1.2

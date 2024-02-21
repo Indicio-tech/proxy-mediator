@@ -1,4 +1,5 @@
 """Helper for working with Askar store."""
+
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 import logging

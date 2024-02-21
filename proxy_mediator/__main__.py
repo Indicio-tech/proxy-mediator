@@ -1,4 +1,5 @@
 """Connections Protocol Starter Kit."""
+
 import asyncio
 from contextlib import asynccontextmanager, suppress
 import logging

@@ -104,7 +104,7 @@ class Connections(Module):
         """Return a DID Doc for the given connection."""
         return {
             "@context": "https://w3id.org/did/v1",
-            "id": connection.did,
+            "id": "did:sov:" + connection.did,
             "publicKey": [
                 {
                     "id": connection.did + "#keys-1",
@@ -119,9 +119,9 @@ class Connections(Module):
                     "type": "IndyAgent",
                     "recipientKeys": [connection.verkey_b58],
                     "routingKeys": [],
-                    "serviceEndpoint": endpoint
-                    if endpoint is not None
-                    else self.endpoint,
+                    "serviceEndpoint": (
+                        endpoint if endpoint is not None else self.endpoint
+                    ),
                 }
             ],
         }

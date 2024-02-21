@@ -1,4 +1,5 @@
 """Coordinate mediation protocol."""
+
 import asyncio
 from contextvars import ContextVar
 import logging
@@ -156,9 +157,11 @@ class CoordinateMediation(Module):
                 "routing_keys": [
                     verkey_to_didkey(agent.mediator_connection.verkey),
                     *[
-                        verkey_b58_to_didkey(key)
-                        if not key.startswith("did:key:")
-                        else key
+                        (
+                            verkey_b58_to_didkey(key)
+                            if not key.startswith("did:key:")
+                            else key
+                        )
                         for key in self.external_mediator_routing_keys
                     ],
                 ],
