@@ -32,7 +32,12 @@ def verkey_to_didkey(verkey: bytes) -> str:
 
 def didkey_to_verkey(didkey: str) -> bytes:
     """Convert didkey to verkey."""
-    codec, unwrapped = multicodec.unwrap(multibase.decode(didkey[8:]))
+    try:
+        multikey = didkey[8:].split("#")[0]
+    except Exception:
+        raise ProtocolError(f"Invalid did:key: {didkey}")
+
+    codec, unwrapped = multicodec.unwrap(multibase.decode(multikey))
     if codec.name != "ed25519-pub":
         raise ProtocolError(f"Unsupported did:key: {codec.name}")
 
