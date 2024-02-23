@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "proxy-mediator-setup"
-version = "0.1.5"
+version = "0.1.6-rc1"
 description = "Automated setup of proxy mediator and ACA-Py instance"
 authors = ["Daniel Bluhm <dbluhm@pm.me>"]
 license = "Apache-2.0"
