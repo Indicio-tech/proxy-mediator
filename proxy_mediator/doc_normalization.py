@@ -222,6 +222,19 @@ class LegacyDocCorrections:
         return value
 
     @classmethod
+    def ensure_authentication_is_a_ref(cls, value: dict) -> dict:
+        """Ensure authentication is a reference."""
+        if "authentication" in value:
+            authn = value["authentication"]
+            if isinstance(authn, list) and authn and isinstance(authn[0], str):
+                if "#" not in authn[0]:
+                    vms = value.get("verificationMethod", [])
+                    if not vms:
+                        raise ValueError("No verification methods to reference")
+                    authn[0] = vms[0].get("id")
+        return value
+
+    @classmethod
     def apply(cls, value: dict) -> dict:
         """Apply all corrections to the given DID document."""
         value = deepcopy(value)
@@ -232,6 +245,7 @@ class LegacyDocCorrections:
             cls.didcomm_services_use_updated_conventions,
             cls.remove_routing_keys_from_verification_method,
             cls.didcomm_services_recip_keys_are_refs_routing_keys_are_did_key_ref,
+            cls.ensure_authentication_is_a_ref,
         ):
             value = correction(value)
 
