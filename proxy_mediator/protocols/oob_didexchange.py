@@ -2,17 +2,28 @@
 
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 import uuid
 
 from aries_staticagent import Message, ModuleRouter, Target, crypto
+import base58
 from multiformats import multibase, multicodec
+from pydid import DIDDocument, Service, VerificationMethod, deserialize_document
+from pydid.service import DIDCommV1Service
+from pydid.verification_method import (
+    Ed25519VerificationKey2018,
+    Ed25519VerificationKey2020,
+    Multikey,
+)
+
+from ..doc_normalization import LegacyDocCorrections
 
 from ..connection import Connection, ConnectionMachine
 from ..encode import b64_to_bytes, b64_to_dict, bytes_to_b64, dict_to_b64, unpad
 from ..error import ProtocolError
 from .connections import Connections
 from .constants import DIDCOMM, DIDCOMM_OLD
+from ..resolver import DIDResolver
 
 
 LOGGER = logging.getLogger(__name__)
@@ -178,6 +189,90 @@ class OobDidExchange(Connections):
 
         return new_connection
 
+    def vm_to_verkey(self, vm: VerificationMethod) -> bytes:
+        """Convert a verification method to a verkey."""
+        LOGGER.debug("Converting VM to verkey: %s", vm.__class__.__name__)
+        if isinstance(vm, Ed25519VerificationKey2018):
+            return base58.b58decode(vm.public_key_base58)
+        elif isinstance(vm, Ed25519VerificationKey2020):
+            if vm.public_key_multibase.startswith("z6Mk"):
+                codec, verkey = multicodec.unwrap(
+                    multibase.decode(vm.public_key_multibase)
+                )
+                assert codec.name == "ed25519-pub"
+                return verkey
+            elif vm.public_key_multibase.startswith("z"):
+                return multibase.decode(vm.public_key_multibase)
+            else:
+                raise ValueError(
+                    f"Unsupported multibase encoded value: {vm.public_key_multibase}"
+                )
+        elif isinstance(vm, Multikey):
+            codec, verkey = multicodec.unwrap(multibase.decode(vm.public_key_multibase))
+            if codec.name == "ed25519-pub":
+                return verkey
+
+            raise ValueError(f"Unsupported multicodec: {codec.name}")
+        raise ValueError(f"Unsupported verification method: {vm.type}")
+
+    async def target_from_doc(
+        self,
+        doc: DIDDocument,
+        type: Optional[str] = None,
+        protocol: Optional[str] = None,
+    ) -> Target:
+        """Create a target from a DID Document."""
+
+        def _filter(service: Service) -> bool:
+            """Filter services."""
+            if not isinstance(service, DIDCommV1Service):
+                return False
+
+            return (
+                service.type == type
+                or "did-communication"
+                and service.service_endpoint.startswith(protocol or "http")
+            )
+
+        service = next(filter(_filter, doc.service or []))
+        assert isinstance(service, DIDCommV1Service)
+        vm = doc.dereference(service.recipient_keys[0])
+        if not isinstance(vm, VerificationMethod):
+            raise ProtocolError(
+                "Invalid verification method reference in recipient keys"
+            )
+        verkey = self.vm_to_verkey(vm)
+
+        return Target(
+            their_vk=verkey,
+            endpoint=service.service_endpoint,
+        )
+
+    async def doc_from_request_or_response(
+        self, message: Message
+    ) -> Tuple[DIDDocument, bytes]:
+        """Extract DID Document from a DID Exchange Request or Response."""
+        if "did_doc~attach" in message:
+            verified, signer = self.verify_signed_attachment(message["did_doc~attach"])
+            if not verified:
+                raise ProtocolError("Invalid signature on DID Doc")
+
+            doc = b64_to_dict(message["did_doc~attach"]["data"]["base64"])
+            normalized = LegacyDocCorrections.apply(doc)
+            return deserialize_document(normalized), signer
+
+        elif "did_rotate~attach" in message:
+            verified, signer = self.verify_signed_attachment(
+                message["did_rotate~attach"]
+            )
+            if not verified:
+                raise ProtocolError("Invalid signature on DID Rotattion")
+
+            resolver = DIDResolver()
+            return await resolver.resolve_and_parse(message["did"]), signer
+
+        raise ProtocolError("No DID Doc or DID Rotation attachment")
+
     @route
     @route(doc_uri=DIDCOMM_OLD)
     async def request(self, msg: Message, invite_connection: Connection):
@@ -189,23 +284,17 @@ class OobDidExchange(Connections):
         if not invite_connection.multiuse:
             self.connections.pop(invite_connection.verkey_b58)
 
-        verified, signer = self.verify_signed_attachment(msg["did_doc~attach"])
-        if not verified:
-            raise ProtocolError("Invalid signature on DID Doc")
-
-        doc = b64_to_dict(msg["did_doc~attach"]["data"]["base64"])
+        doc, signer = await self.doc_from_request_or_response(msg)
+        target = await self.target_from_doc(doc)
 
         ConnectionMachine(invite_connection).receive_request()
 
         # Create relationship connection
         connection = self.new_connection(
             invite_connection=invite_connection,
-            target=Target(
-                endpoint=doc["service"][0]["serviceEndpoint"],
-                recipients=doc["service"][0]["recipientKeys"],
-            ),
+            target=target,
         )
-        connection.diddoc = doc
+        connection.diddoc = doc.serialize()
 
         ConnectionMachine(connection).send_response()
 
@@ -232,24 +321,19 @@ class OobDidExchange(Connections):
         LOGGER.debug("Received response: %s", msg.pretty_print())
         ConnectionMachine(conn).receive_response()
 
-        verified, signer = self.verify_signed_attachment(msg["did_doc~attach"])
-        if not verified:
-            raise ProtocolError("Invalid signature on DID Doc")
+        doc, signer = await self.doc_from_request_or_response(msg)
+        target = await self.target_from_doc(doc)
 
-        doc = b64_to_dict(msg["did_doc~attach"]["data"]["base64"])
         assert conn.invitation_key
         if not signer == didkey_to_verkey(conn.invitation_key):
             raise ProtocolError("Connection response not signed by invitation key")
 
-        LOGGER.debug("Attached DID Doc: %s", json.dumps(doc, indent=2))
+        LOGGER.debug("Attached DID Doc: %s", json.dumps(doc.serialize(), indent=2))
 
         # Update connection
         assert conn.target
-        conn.target.update(
-            recipients=doc["service"][0]["recipientKeys"],
-            endpoint=doc["service"][0]["serviceEndpoint"],
-        )
-        conn.diddoc = doc
+        conn.target = target
+        conn.diddoc = doc.serialize()
         conn.complete()
 
         complete = Message.parse_obj(
