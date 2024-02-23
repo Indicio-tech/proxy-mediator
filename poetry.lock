@@ -454,6 +454,34 @@ files = [
 toml = ["tomli"]
 
 [[package]]
+name = "did-peer-2"
+version = "0.1.2"
+description = "An implementation of did:peer:2"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "did_peer_2-0.1.2-py3-none-any.whl", hash = "sha256:d5908cda2d52b7c34428a421044507d7847fd79b78dc8360441c408f4507d612"},
+    {file = "did_peer_2-0.1.2.tar.gz", hash = "sha256:af8623f62022732e9fadc0289dfb886fd8267767251c4fa0b63694ecd29a7086"},
+]
+
+[package.dependencies]
+base58 = ">=2.1.1"
+
+[[package]]
+name = "did-peer-4"
+version = "0.1.4"
+description = "An implementation of did:peer:4"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "did_peer_4-0.1.4-py3-none-any.whl", hash = "sha256:4c2bb42a55e4fec08fe008a1585db2f11fe19e36121f8919991add027d7c816f"},
+    {file = "did_peer_4-0.1.4.tar.gz", hash = "sha256:b367922067b428d33458ca36158eaed40c863cde2fbab6a18a523dccad533c8e"},
+]
+
+[package.dependencies]
+base58 = ">=2.1.1"
+
+[[package]]
 name = "distlib"
 version = "0.3.8"
 description = "Distribution utilities"
@@ -985,6 +1013,22 @@ dotenv = ["python-dotenv (>=0.10.4)"]
 email = ["email-validator (>=1.0.3)"]
 
 [[package]]
+name = "pydid"
+version = "0.4.3"
+description = "Python library for validating, constructing, and representing DIDs and DID Documents"
+optional = false
+python-versions = ">=3.8.0,<4.0.0"
+files = [
+    {file = "pydid-0.4.3-py3-none-any.whl", hash = "sha256:39a586b4f26c41277b93db2aaf0a2db298f48ccc413bdfc71b7dd010045f31f4"},
+    {file = "pydid-0.4.3.tar.gz", hash = "sha256:1a48a6940bae8279083ebb7c5ab5fe0249e9ba3ea638de9cf8c127487b96b2ef"},
+]
+
+[package.dependencies]
+inflection = ">=0.5.1,<0.6.0"
+pydantic = ">=1.10.0,<2.0.0"
+typing-extensions = ">=4.5.0,<5.0.0"
+
+[[package]]
 name = "pynacl"
 version = "1.5.0"
 description = "Python binding to the Networking and Cryptography (NaCl) library"
@@ -1370,4 +1414,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "72e58c8bd02bde3be1ce8dacd70916f0f3b2cd537e1fe0ee0fffbd9005d96d2d"
+content-hash = "5bc40d0ea96b46a2c8ca1130309a8fdcfce8bf4c75070f2526a5d1f09fc11676"

@@ -56,6 +56,28 @@ class MessageRetriever:
         self.poll_task: Optional[asyncio.Task] = None
         self.ws_task: Optional[asyncio.Task] = None
 
+    async def handle_ws(
+        self, socket: aiohttp.ClientWebSocketResponse, msg: aiohttp.WSMessage
+    ):
+        """Handle a message from the websocket."""
+        LOGGER.debug("Received ws message: %s", msg)
+        if msg.type == aiohttp.WSMsgType.BINARY:
+            try:
+                unpacked = self.connection.unpack(msg.data)
+                LOGGER.debug(
+                    "Unpacked message from websocket: %s",
+                    unpacked.pretty_print(),
+                )
+                await self.connection.dispatch(unpacked)
+            except Exception:
+                LOGGER.exception("Failed to handle message")
+
+        elif msg.type == aiohttp.WSMsgType.ERROR:
+            LOGGER.error(
+                "ws connection closed with exception %s",
+                socket.exception(),
+            )
+
     async def ws(self):
         """Open websocket and handle messages."""
         LOGGER.debug("Starting websocket to %s", self.endpoint)
@@ -64,23 +86,7 @@ class MessageRetriever:
                 async with session.ws_connect(self.endpoint) as socket:
                     self.socket = socket
                     async for msg in socket:
-                        LOGGER.debug("Received ws message: %s", msg)
-                        if msg.type == aiohttp.WSMsgType.BINARY:
-                            try:
-                                unpacked = self.connection.unpack(msg.data)
-                                LOGGER.debug(
-                                    "Unpacked message from websocket: %s",
-                                    unpacked.pretty_print(),
-                                )
-                                await self.connection.dispatch(unpacked)
-                            except Exception:
-                                LOGGER.exception("Failed to handle message")
-
-                        elif msg.type == aiohttp.WSMsgType.ERROR:
-                            LOGGER.error(
-                                "ws connection closed with exception %s",
-                                socket.exception(),
-                            )
+                        await self.handle_ws(socket, msg)
             except Exception:
                 LOGGER.exception("Websocket connection error")
         self.socket = None
