@@ -19,7 +19,7 @@ from typing import Any, Awaitable, Callable, Mapping, Optional, TypeVar, cast
 from httpx import AsyncClient
 
 from controller.controller import Controller
-from controller.models import InvitationRecord, ConnRecord
+from controller.models import InvitationRecord
 
 PROXY = getenv("PROXY", "http://localhost:3000")
 AGENT = getenv("AGENT", "http://localhost:3001")
