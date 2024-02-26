@@ -250,7 +250,7 @@ class OobDidExchange(Connections):
 
     async def doc_from_request_or_response(
         self, message: Message
-    ) -> Tuple[DIDDocument, bytes]:
+    ) -> Tuple[DIDDocument, Optional[bytes]]:
         """Extract DID Document from a DID Exchange Request or Response."""
         if "did_doc~attach" in message:
             verified, signer = self.verify_signed_attachment(message["did_doc~attach"])
@@ -261,17 +261,15 @@ class OobDidExchange(Connections):
             normalized = LegacyDocCorrections.apply(doc)
             return deserialize_document(normalized), signer
 
-        elif "did_rotate~attach" in message:
+        elif "response" in message.type and "did_rotate~attach" in message:
             verified, signer = self.verify_signed_attachment(
                 message["did_rotate~attach"]
             )
             if not verified:
                 raise ProtocolError("Invalid signature on DID Rotattion")
 
-            resolver = DIDResolver()
-            return await resolver.resolve_and_parse(message["did"]), signer
-
-        raise ProtocolError("No DID Doc or DID Rotation attachment")
+        resolver = DIDResolver()
+        return await resolver.resolve_and_parse(message["did"]), None
 
     @route
     @route(doc_uri=DIDCOMM_OLD)
