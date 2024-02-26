@@ -14,7 +14,7 @@ from base64 import urlsafe_b64decode
 from functools import partial, wraps
 import json
 from os import getenv
-from typing import Any, Awaitable, Callable, Optional, TypeVar, cast
+from typing import Any, Awaitable, Callable, Mapping, Optional, TypeVar, cast
 
 from httpx import AsyncClient
 
@@ -157,7 +157,7 @@ class Acapy:
         )
         return invitation.invitation_url
 
-    async def receive_invitation(self, invite: dict) -> ConnRecord:
+    async def receive_invitation(self, invite: dict) -> Mapping[str, Any]:
         oob_record = await self.controller.post(
             "/out-of-band/receive-invitation",
             json=invite,
@@ -166,7 +166,6 @@ class Acapy:
 
         conn_record = await self.controller.record_with_values(
             "connections",
-            record_type=ConnRecord,
             invitation_msg_id=oob_record["invi_msg_id"],
             rfc23_state="completed",
         )
@@ -220,10 +219,10 @@ async def main():
         conn_record = await agent.receive_invitation(invite)
 
         print("Proxy and agent are now connected.")
-        print(f"Proxy connection id: {conn_record.connection_id}")
+        print(f"Proxy connection id: {conn_record['connection_id']}")
 
-        assert isinstance(conn_record.connection_id, str)
-        mediation_id = await agent.request_mediation(conn_record.connection_id)
+        assert isinstance(conn_record["connection_id"], str)
+        mediation_id = await agent.request_mediation(conn_record["connection_id"])
         print("Proxy has granted mediation to agent.")
         print(f"Proxy mediation id: {mediation_id}")
 
